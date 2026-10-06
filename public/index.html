@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="hr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Barbara Skoko Beauty · Makeup · Threading · Široki Brijeg</title>
+  <meta name="description" content="Šminka za svaku priliku i precizno oblikovanje obrva – threading, henna i classic – u Širokom Brijegu. Rezervirajte termin online.">
+  <meta name="theme-color" content="#FFFFFF">
+  <meta property="og:title" content="Barbara Skoko Beauty">
+  <meta property="og:description" content="Makeup · Threading · Široki Brijeg. Rezervirajte termin online.">
+  <meta property="og:image" content="/assets/logo/favicon_app_icon_512.png">
+  <link rel="icon" href="/assets/logo/favicon_32.png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/assets/logo/apple_touch_icon_180.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="preload" href="/assets/fonts/Lora-Regular.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="preload" href="/assets/fonts/Poppins-Light.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="/" aria-label="Barbara Skoko Beauty – naslovna"><img src="/assets/logo/BSB_Horizontalni_logo_tamni.svg" alt="Barbara Skoko Beauty" width="126" height="40"></a>
+      <nav class="nav" aria-label="Glavni izbornik">
+        <a href="#usluge">Usluge</a>
+        <a href="#o-meni">O meni</a>
+        <a href="#radovi" data-gallery-link hidden>Radovi</a>
+        <a href="#kontakt">Kontakt</a>
+        <a class="btn btn-small" href="#rezervacija">Rezervirajte</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap">
+        <img class="mark" src="/assets/logo/BSB_Znak_u_krugu_tamni.svg" alt="" width="92" height="92">
+        <p class="label">Makeup · Threading · Široki Brijeg</p>
+        <h1>Istaknite ono najljepše <em>što već imate.</em></h1>
+        <p class="lead">Šminka za svaku priliku i precizno oblikovanje obrva – threading, henna i classic – u opuštenom i besprijekorno čistom prostoru.</p>
+        <div class="actions">
+          <a class="btn" href="#rezervacija">Rezervirajte termin</a>
+          <a class="btn btn-outline" href="#usluge">Pogledajte usluge</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="usluge" class="bg-cream">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="label">Usluge</span>
+          <h2>Cjenik <em>usluga</em></h2>
+        </div>
+        <div class="price-list" id="price-list"><p class="empty">Učitavanje…</p></div>
+      </div>
+    </section>
+
+    <section id="rezervacija">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="label">Rezervacija</span>
+          <h2>Rezervirajte <em>svoj termin</em></h2>
+        </div>
+        <div class="booking" id="booking">
+          <ol class="steps" id="steps">
+            <li data-step="1" class="active">1 · Usluga</li>
+            <li data-step="2">2 · Datum i vrijeme</li>
+            <li data-step="3">3 · Vaši podaci</li>
+          </ol>
+
+          <div class="step-panel" data-panel="1">
+            <div id="svc-list"><p class="empty">Učitavanje…</p></div>
+            <div class="summary-bar">
+              <div class="total" id="svc-total">Odaberite uslugu</div>
+              <button class="btn" id="to-step-2" disabled>Dalje</button>
+            </div>
+          </div>
+
+          <div class="step-panel" data-panel="2" hidden>
+            <div class="cal" id="cal"></div>
+            <div id="slots-wrap"></div>
+            <div class="step-actions">
+              <button class="btn-link" data-back="1">Natrag na usluge</button>
+              <button class="btn" id="to-step-3" disabled>Dalje</button>
+            </div>
+          </div>
+
+          <div class="step-panel" data-panel="3" hidden>
+            <div class="recap" id="recap"></div>
+            <form id="booking-form" class="form-grid" novalidate>
+              <div class="field"><label for="f-name">Ime i prezime</label><input id="f-name" name="name" autocomplete="name" required></div>
+              <div class="field"><label for="f-phone">Broj mobitela</label><input id="f-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+387 6x xxx xxx" required></div>
+              <div class="field"><label for="f-email">Email</label><input id="f-email" name="email" type="email" autocomplete="email" inputmode="email" required></div>
+              <div class="field"><label for="f-note">Napomena (nije obavezno)</label><textarea id="f-note" name="note" maxlength="500" placeholder="npr. prigoda, želje, alergije"></textarea></div>
+              <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+              <label class="check"><input type="checkbox" name="consent" id="f-consent" required><span>Slažem se s obradom osobnih podataka u svrhu rezervacije termina. <a href="/privatnost" target="_blank">Više o privatnosti</a></span></label>
+              <label class="check"><input type="checkbox" name="remember" id="f-remember" checked><span>Zapamti moje podatke na ovom uređaju</span></label>
+              <p class="notice" id="confirm-note">Termin je potvrđen kad vam Barbara odgovori emailom.</p>
+              <p class="error" id="form-error" role="alert" hidden></p>
+              <div class="step-actions">
+                <button type="button" class="btn-link" data-back="2">Natrag na termine</button>
+                <button class="btn" type="submit" id="submit-btn">Pošaljite zahtjev</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="step-panel" data-panel="done" hidden>
+            <div class="done-box" id="done-box"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="o-meni" class="bg-sand">
+      <div class="wrap about">
+        <div class="photo" id="about-photo"><img class="mark-only" src="/assets/logo/BSB_Znak_u_krugu_tamni.svg" alt=""></div>
+        <div>
+          <span class="label">O meni</span>
+          <h2>Bok, ja sam <em>Barbara.</em></h2>
+          <p>Bavim se šminkanjem i oblikovanjem obrva. Moj cilj je istaknuti vašu prirodnu ljepotu – da iz svakog termina izađete samopouzdanije.</p>
+          <ul class="edu">
+            <li><span>Petra Braćić</span><span>Edukacija šminkanja</span></li>
+            <li><span>Mary Bošnjak</span><span>Edukacija šminkanja</span></li>
+            <li><span>Threading Bar</span><span>Edukacija oblikovanja obrva</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="radovi" hidden>
+      <div class="wrap">
+        <div class="section-head">
+          <span class="label">Radovi</span>
+          <h2>Iz <em>salona</em></h2>
+        </div>
+        <div class="gallery" id="gallery"></div>
+      </div>
+    </section>
+
+    <section id="savjeti" class="bg-cream">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="label">Priprema za termin</span>
+          <h2>Mali <em>savjeti</em></h2>
+        </div>
+        <ol class="tips">
+          <li><div><strong>Njegovana koža</strong><span>Večer prije hidratantna krema, na termin čistog lica.</span></div></li>
+          <li><div><strong>Bez pilinga dan prije</strong><span>Jaki pilinzi i novi tretmani mogu iritirati kožu.</span></div></li>
+          <li><div><strong>Obrve na vrijeme</strong><span>Oblikovanje 2–3 dana ranije.</span></div></li>
+          <li><div><strong>Ponesite inspiraciju</strong><span>Fotografija looka i odjeća koju ćete nositi.</span></div></li>
+          <li><div><strong>Planirajte vrijeme</strong><span>Šminkanje traje oko 60 minuta.</span></div></li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="kontakt" class="bg-dark on-dark">
+      <div class="wrap contact-grid">
+        <div>
+          <span class="label">Kontakt</span>
+          <h2>Vidimo <em>se uskoro</em></h2>
+          <ul class="contact-list" id="contact-list"></ul>
+          <h3 style="margin-top:32px">Radno vrijeme</h3>
+          <table class="hours" id="hours"></table>
+        </div>
+        <div>
+          <iframe class="map" id="map" title="Lokacija salona na karti" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+          <p style="margin-top:12px" id="address-line"></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    © <span id="year">2026</span> Barbara Skoko Beauty · Makeup · Threading · Široki Brijeg<br>
+    <a href="/privatnost">Privatnost</a>
+  </footer>
+
+  <script src="/js/booking.js" type="module"></script>
+</body>
+</html>

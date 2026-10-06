@@ -1,0 +1,18 @@
+modules = ["nodejs-20", "postgresql-16"]
+run = "npm start"
+entrypoint = "server/index.js"
+
+[nix]
+channel = "stable-24_05"
+
+[[ports]]
+localPort = 3000
+externalPort = 80
+
+[deployment]
+deploymentTarget = "vm"
+build = ["npm", "ci", "--omit=dev"]
+run = ["npm", "start"]
+
+[env]
+NODE_ENV = "production"

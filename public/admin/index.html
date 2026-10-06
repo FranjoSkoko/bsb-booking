@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="hr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Administracija · Barbara Skoko Beauty</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#2B2421">
+  <link rel="icon" href="/assets/logo/favicon_32.png">
+  <link rel="apple-touch-icon" href="/assets/logo/apple_touch_icon_180.png">
+  <link rel="manifest" href="/admin/manifest.webmanifest">
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body class="admin">
+  <div id="login" class="action-page" hidden>
+    <form class="action-card" id="login-form">
+      <img src="/assets/logo/BSB_Znak_u_krugu_tamni.svg" alt="" width="72" height="72">
+      <p class="label">Administracija</p>
+      <h1>Dobro <em>došli</em></h1>
+      <div class="field" style="text-align:left"><label for="pw">Lozinka</label><input id="pw" type="password" autocomplete="current-password" required></div>
+      <p class="error" id="login-err" hidden></p>
+      <p style="margin-top:20px"><button class="btn" type="submit">Prijava</button></p>
+    </form>
+  </div>
+
+  <div id="app" hidden>
+    <header class="admin-top">
+      <img src="/assets/logo/BSB_Horizontalni_logo_svijetli.svg" alt="Barbara Skoko Beauty" height="32">
+      <div class="admin-top-actions">
+        <button class="btn btn-small btn-light" data-action="new-booking">+ Termin</button>
+        <button class="icon-btn" data-action="logout">Odjava</button>
+      </div>
+    </header>
+    <div id="banner"></div>
+    <main id="view" class="admin-main"></main>
+    <nav class="tabbar" aria-label="Administracija">
+      <button data-tab="danas" class="active">Danas</button>
+      <button data-tab="kalendar">Kalendar</button>
+      <button data-tab="zahtjevi">Zahtjevi <span class="badge" id="pending-badge" hidden></span></button>
+      <button data-tab="klijentice">Klijentice</button>
+      <button data-tab="postavke">Postavke</button>
+    </nav>
+  </div>
+
+  <dialog id="modal"><div id="modal-body"></div></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="/admin/admin.js" type="module"></script>
+</body>
+</html>

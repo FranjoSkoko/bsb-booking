@@ -1,0 +1,2 @@
+Lora i Poppins: SIL Open Font License 1.1 (Google Fonts). Besplatno i za komercijalnu upotrebu.
+Na webu ih je najjednostavnije učitati s Google Fonts: family=Lora:ital,wght@0,400;1,400 i family=Poppins:wght@300;400;500;700

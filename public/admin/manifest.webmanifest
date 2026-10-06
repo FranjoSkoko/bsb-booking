@@ -1,0 +1,14 @@
+{
+  "name": "BSB Administracija",
+  "short_name": "BSB Admin",
+  "lang": "hr",
+  "start_url": "/admin",
+  "scope": "/admin",
+  "display": "standalone",
+  "background_color": "#2B2421",
+  "theme_color": "#2B2421",
+  "icons": [
+    { "src": "/assets/logo/icon_192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/assets/logo/favicon_app_icon_512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
