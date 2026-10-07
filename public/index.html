@@ -162,8 +162,11 @@
           <table class="hours" id="hours"></table>
         </div>
         <div>
-          <iframe class="map" id="map" title="Lokacija salona na karti" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
-          <p style="margin-top:12px" id="address-line"></p>
+          <a class="map-wrap" id="map-link" target="_blank" rel="noopener" aria-label="Otvori upute do salona u Google kartama">
+            <iframe class="map" id="map" title="Lokacija salona na karti" loading="lazy" referrerpolicy="no-referrer-when-downgrade" tabindex="-1"></iframe>
+          </a>
+          <p style="margin:16px 0 12px" id="address-line"></p>
+          <a class="btn" id="route-btn" target="_blank" rel="noopener">Upute do salona</a>
         </div>
       </div>
     </section>
