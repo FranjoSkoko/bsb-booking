@@ -59,7 +59,7 @@ Nakon toga u administraciji (Postavke → Email) kliknite **Pošalji probne emai
 Autoscale „spava” kad nema posjeta pa podsjetnici kasne. Tada dodajte tajnu `CRON_SECRET` i na besplatnom servisu (npr. cron-job.org) svakih 10 minuta pozivajte `https://VAŠA-ADRESA/api/cron?key=CRON_SECRET`.
 
 ## Prije objave provjeriti
-- Adresa salona je upisana (Ivana Zajca II-2, Široki Brijeg), a karta traži „Elbas Apartman” u istoj kući. Ako pribadača nije točno na kući, u Postavkama upišite koordinate iz Google karata u polje „Lokacija na karti”.
+- Adresa salona je upisana (Ivana Zajca II-2, Široki Brijeg), a karta pokazuje točne koordinate kuće (43.3751761, 17.6075204, ista kuća kao Elbas Apartman). Ako se lokacija ikad promijeni, u Postavkama upišite koordinate iz Google karata u polje „Lokacija na karti”.
 - Radi li Barbara nedjeljom (zadano: ne).
 - Kratki opisi usluga Henna, Classic i Nadusnice (upisani su prijedlozi).
 - Rok otkazivanja 24 h, najranije 2 h i najkasnije 60 dana unaprijed.
