@@ -51,6 +51,7 @@ export const DEFAULT_SETTINGS = {
     events: false, // upiti za vjenčanja i svečanosti
     vouchers: false, // poklon bonovi
     reviews: false, // recenzije na stranici
+    priceList: false, // posebna sekcija s cjenikom (cijene se vide i u rezervaciji)
   },
   extras: {
     holidays: null, // null = svi s popisa (server/holidays.js)

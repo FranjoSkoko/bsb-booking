@@ -376,7 +376,7 @@ function renderContact() {
 }
 
 // Zadana fotografija za „O meni”; postavlja se tek kad se zna je li Barbara dodala svoju (da se ne učitaju obje)
-const ABOUT_DEFAULT = '/assets/photos/barbara-o-meni.jpg';
+const ABOUT_DEFAULT = '/assets/photos/barbara-o-meni.jpg?v=2';
 function showAboutPhoto(src) {
   $('#about-photo').innerHTML = `<img src="${esc(src)}" alt="Barbara Skoko" width="1080" height="1350">`;
 }
@@ -529,6 +529,11 @@ function renderEvents() {
   }
   const datum = params.get('datum');
   renderPriceList();
+  if (state.config.features?.priceList) {
+    $('#usluge').hidden = false;
+    $('[data-feature-link="priceList"]').hidden = false;
+    Object.assign($('#hero-second'), { href: '#usluge', textContent: 'Pogledajte usluge' });
+  }
   renderServices();
   renderContact();
   renderGallery();
