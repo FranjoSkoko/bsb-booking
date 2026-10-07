@@ -385,9 +385,15 @@ function renderGallery() {
   const items = state.config.gallery;
   const about = items.find((g) => g.caption === '#o-meni');
   showAboutPhoto(about ? `/api/gallery/${about.id}` : ABOUT_DEFAULT);
-  // Fotografije koje Barbara doda u administraciji (Radovi) dolaze uz lookove
-  const uploads = items.filter((g) => g.caption !== '#o-meni').map((g) => ({ src: `/api/gallery/${g.id}`, alt: g.caption || 'Rad Barbare Skoko', cap: g.caption || '' }));
-  renderWorks(uploads);
+  // Fotografije koje Barbara doda u administraciji dolaze iza zadanih, pa se brojanje nastavlja
+  const src = (g) => `/api/gallery/${g.id}`;
+  const looks = items.filter((g) => !g.caption.startsWith('#')).map((g) => ({ src: src(g), alt: g.caption || 'Šminka – look' }));
+  const pairs = {};
+  for (const g of items) {
+    const m = /^#obrve:([a-f0-9]+):(prije|poslije)$/.exec(g.caption);
+    if (m) (pairs[m[1]] ||= {})[m[2] === 'prije' ? 'before' : 'after'] = src(g);
+  }
+  renderWorks(looks, Object.values(pairs).filter((p) => p.before && p.after));
 }
 
 // ---------- radovi: obrve prije i poslije, šminka i lookovi ----------
@@ -407,16 +413,29 @@ function workHtml(group, i, tag = '') {
     <img src="${esc(item.src)}" alt="${esc(item.alt)}" loading="lazy">${tag}</button>`;
 }
 
-function renderWorks(uploads = []) {
+// Koliko se radova vidi na početku i koliko ih dodaje svaki klik na „Prikaži više”
+const SHOW_STEP = { obrve: 2, lookovi: 4 };
+
+function renderWorks(lookUploads = [], browUploads = []) {
+  const brows = [...BROWS.map((p) => ({ before: W + p.before, after: W + p.after })), ...browUploads];
   lbGroups = {
-    obrve: BROWS.flatMap((p) => [
-      { src: W + p.before, alt: 'Obrve prije oblikovanja', cap: 'Prije' },
-      { src: W + p.after, alt: 'Obrve nakon oblikovanja', cap: 'Poslije' },
+    obrve: brows.flatMap((p) => [
+      { src: p.before, alt: 'Obrve prije oblikovanja', cap: 'Prije' },
+      { src: p.after, alt: 'Obrve nakon oblikovanja', cap: 'Poslije' },
     ]),
-    lookovi: [...LOOKS.map((f, n) => ({ src: W + f, alt: `Šminka – look ${n + 1}`, cap: '' })), ...uploads],
+    lookovi: [...LOOKS.map((f) => ({ src: W + f, alt: 'Šminka – look' })), ...lookUploads].map((it, n) => ({ ...it, alt: `${it.alt} ${n + 1}`, cap: '' })),
   };
-  $('#ba-list').innerHTML = BROWS.map((p, n) => `<div class="ba">${workHtml('obrve', 2 * n, '<span class="tag">Prije</span>')}${workHtml('obrve', 2 * n + 1, '<span class="tag after">Poslije</span>')}</div>`).join('');
-  $('#looks').innerHTML = lbGroups.lookovi.map((_, i) => workHtml('lookovi', i)).join('');
+  const hide = (group, n) => (n >= SHOW_STEP[group] ? ' hidden' : '');
+  $('#ba-list').innerHTML = brows.map((_, n) => `<div class="ba"${hide('obrve', n)}>${workHtml('obrve', 2 * n, '<span class="tag">Prije</span>')}${workHtml('obrve', 2 * n + 1, '<span class="tag after">Poslije</span>')}</div>`).join('');
+  $('#looks').innerHTML = lbGroups.lookovi.map((_, i) => workHtml('lookovi', i).replace('<button', `<button${hide('lookovi', i)}`)).join('');
+  for (const [group, list] of [['obrve', '#ba-list'], ['lookovi', '#looks']]) {
+    const btn = $(`[data-more="${group}"]`);
+    btn.hidden = !$(`${list} > [hidden]`);
+    btn.onclick = () => {
+      $$(`${list} > [hidden]`).slice(0, SHOW_STEP[group]).forEach((el) => { el.hidden = false; });
+      btn.hidden = !$(`${list} > [hidden]`);
+    };
+  }
 }
 
 function openLightbox(group, i) {

@@ -1,4 +1,5 @@
 import express from 'express';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { q, initDb, getSettings, saveSetting, getServices, tx } from './db.js';
@@ -75,14 +76,14 @@ app.use(express.static(PUBLIC, {
 // ---------- javni API ----------
 
 const jsonSmall = express.json({ limit: '100kb' });
-app.use('/api', (req, res, next) => (req.method === 'POST' && req.path === '/admin/gallery' ? next() : jsonSmall(req, res, next)));
+app.use('/api', (req, res, next) => (req.method === 'POST' && req.path.startsWith('/admin/gallery') ? next() : jsonSmall(req, res, next)));
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
 app.get('/api/config', wrap(async (req, res) => {
   const settings = await getSettings();
   const services = await getServices({ onlyActive: true });
-  const gallery = (await q('SELECT id, caption FROM gallery ORDER BY sort, id DESC')).rows;
+  const gallery = (await q('SELECT id, caption FROM gallery ORDER BY sort, id')).rows;
   res.json({
     business: settings.business,
     hours: settings.hours,
@@ -539,6 +540,31 @@ admin.post('/gallery', express.json({ limit: '12mb' }), wrap(async (req, res) =>
     return (await db.query('INSERT INTO gallery (mime, data, caption, sort) VALUES ($1,$2,$3,0) RETURNING id, caption', [m[1], data, caption])).rows[0];
   });
   res.status(201).json(row);
+}));
+
+// Par obrva (prije i poslije) sprema se zajedno; oba retka dijele ključ u opisu: #obrve:<ključ>:prije|poslije
+const imageData = (url) => {
+  const m = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(String(url || ''));
+  if (!m) throw new UserError('Učitajte obje fotografije (JPG, PNG ili WEBP).');
+  const data = Buffer.from(m[2], 'base64');
+  if (data.length > 8 * 1024 * 1024) throw new UserError('Fotografija je prevelika (najviše 8 MB).');
+  return { mime: m[1], data };
+};
+admin.post('/gallery/pair', express.json({ limit: '24mb' }), wrap(async (req, res) => {
+  const before = imageData(req.body.before);
+  const after = imageData(req.body.after);
+  const key = crypto.randomBytes(6).toString('hex');
+  await tx(async (db) => {
+    for (const [img, side] of [[before, 'prije'], [after, 'poslije']]) {
+      await db.query('INSERT INTO gallery (mime, data, caption, sort) VALUES ($1,$2,$3,0)', [img.mime, img.data, `#obrve:${key}:${side}`]);
+    }
+  });
+  res.status(201).json({ ok: true, key });
+}));
+
+admin.delete('/gallery/pair/:key', wrap(async (req, res) => {
+  await q('DELETE FROM gallery WHERE caption LIKE $1', [`#obrve:${String(req.params.key).replace(/[^a-f0-9]/g, '')}:%`]);
+  res.json({ ok: true });
 }));
 
 admin.delete('/gallery/:id', wrap(async (req, res) => {

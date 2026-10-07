@@ -150,6 +150,9 @@ section { padding: clamp(64px, 10vw, 112px) 0; }
   .ba { grid-template-columns: 1fr; gap: 6px; }
 }
 
+.more { text-align: center; }
+.more .btn { margin-top: 32px; }
+
 /* Povećana fotografija */
 .lightbox { padding: 0; border: 0; background: transparent; max-width: 100vw; max-height: 100vh; width: 100vw; height: 100vh; }
 .lightbox::backdrop { background: rgba(28, 23, 21, .97); }
