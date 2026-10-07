@@ -30,6 +30,25 @@ Web aplikacija za rezervaciju termina (makeup i obrve, Široki Brijeg). Klijenti
 8. Termin promijenjen → klijentici (kad ga Barbara pomakne)
 Uz to Barbara svako jutro u 7:00 dobiva pregled dana.
 
+## Pokretanje na Railwayu (preporučeno)
+
+Railway sam objavi svaku izmjenu s GitHuba (grana `main`) i aplikacija stalno radi.
+
+1. Na <https://railway.com> se prijavite preko GitHuba. **New Project → Deploy from GitHub repo → bsb-booking** (ako repozitorij nije na popisu, kliknite *Configure GitHub App* i dopustite pristup).
+2. U istom projektu: **+ Create → Database → PostgreSQL**.
+3. Kliknite servis **bsb-booking → Variables** i dodajte:
+
+   | Ime | Vrijednost |
+   |---|---|
+   | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (referenca na bazu) |
+   | `ADMIN_PASSWORD` | lozinka za administraciju |
+   | `SESSION_SECRET` | dugi nasumični niz znakova |
+   | `SMTP_USER` | `barbaraskokobeauty@gmail.com` |
+   | `SMTP_PASS` | Gmail App password (vidi niže) |
+
+4. **Settings → Networking → Generate Domain**. Adresa (npr. `bsb-booking-production.up.railway.app`) automatski se koristi u linkovima u emailovima; `PUBLIC_URL` treba samo ako kasnije dodate vlastitu domenu.
+5. Otvorite adresu i `/admin` za prijavu.
+
 ## Pokretanje na Replitu
 
 1. Na replit.com: **Create App → Import from GitHub** i odaberite repozitorij `bsb-booking`.
