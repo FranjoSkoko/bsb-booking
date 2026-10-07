@@ -21,8 +21,8 @@
     <div class="wrap">
       <a class="logo" href="/" aria-label="Barbara Skoko Beauty – naslovna"><img src="/assets/logo/BSB_Horizontalni_logo_tamni.svg" alt="Barbara Skoko Beauty" width="126" height="40"></a>
       <nav class="nav" aria-label="Glavni izbornik">
-        <a href="#usluge">Usluge</a>
         <a href="#o-meni">O meni</a>
+        <a href="#usluge" data-feature-link="priceList" hidden>Usluge</a>
         <a href="#radovi" data-gallery-link hidden>Radovi</a>
         <a href="#poklon-bon" data-feature-link="vouchers" hidden>Poklon bon</a>
         <a href="#svecanosti" data-feature-link="events" hidden>Svečanosti</a>
@@ -41,12 +41,27 @@
         <p class="lead">Šminka za svaku priliku i precizno oblikovanje obrva – threading, henna i classic – u opuštenom i besprijekorno čistom prostoru.</p>
         <div class="actions">
           <a class="btn" href="#rezervacija">Rezervirajte termin</a>
-          <a class="btn btn-outline" href="#usluge">Pogledajte usluge</a>
+          <a class="btn btn-outline" href="#kontakt" id="hero-second">Kontakt i lokacija</a>
+        </div>
+      </div>
+    </section>
+    <section id="o-meni" class="bg-sand">
+      <div class="wrap about">
+        <div class="photo" id="about-photo"></div>
+        <div>
+          <span class="label">O meni</span>
+          <h2>Bok, ja sam <em>Barbara.</em></h2>
+          <p>Bavim se šminkanjem i oblikovanjem obrva. Moj cilj je istaknuti vašu prirodnu ljepotu – da iz svakog termina izađete samopouzdanije.</p>
+          <ul class="edu">
+            <li><span>Petra Braćić</span><span>Edukacija šminkanja</span></li>
+            <li><span>Mary Bošnjak</span><span>Edukacija šminkanja</span></li>
+            <li><span>Threading Bar</span><span>Edukacija oblikovanja obrva</span></li>
+          </ul>
         </div>
       </div>
     </section>
 
-    <section id="usluge" class="bg-cream">
+    <section id="usluge" data-alt hidden>
       <div class="wrap">
         <div class="section-head">
           <span class="label">Usluge</span>
@@ -113,23 +128,7 @@
       </div>
     </section>
 
-    <section id="o-meni" class="bg-sand">
-      <div class="wrap about">
-        <div class="photo" id="about-photo"></div>
-        <div>
-          <span class="label">O meni</span>
-          <h2>Bok, ja sam <em>Barbara.</em></h2>
-          <p>Bavim se šminkanjem i oblikovanjem obrva. Moj cilj je istaknuti vašu prirodnu ljepotu – da iz svakog termina izađete samopouzdanije.</p>
-          <ul class="edu">
-            <li><span>Petra Braćić</span><span>Edukacija šminkanja</span></li>
-            <li><span>Mary Bošnjak</span><span>Edukacija šminkanja</span></li>
-            <li><span>Threading Bar</span><span>Edukacija oblikovanja obrva</span></li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <section id="radovi" hidden>
+    <section id="radovi" data-alt hidden>
       <div class="wrap">
         <div class="section-head">
           <span class="label">Radovi</span>

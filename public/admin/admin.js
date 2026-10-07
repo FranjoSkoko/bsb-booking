@@ -855,6 +855,7 @@ const FEATURES = [
   { k: 'rebook', t: 'Podsjetnik za novi termin', d: 'Nekoliko tjedana nakon obrva klijentica dobije email „Vrijeme je za nove obrve?” s linkom za rezervaciju.' },
   { k: 'reviews', t: 'Recenzije na stranici', d: 'Nakon termina klijentice ocijene uslugu, a ocjene koje odobrite prikazuju se na stranici.' },
   { k: 'vouchers', t: 'Poklon bonovi', d: 'Bon se naruči na stranici, kupac ga dobije emailom za ispis, a vi ga u salonu iskoristite po kodu.' },
+  { k: 'priceList', t: 'Cjenik na stranici', d: 'Posebna sekcija s cjenikom ispod „O meni”. Cijene se vide i u koraku rezervacije, pa je sekcija zasad skrivena.' },
   { k: 'events', t: 'Vjenčanja i svečanosti', d: 'Obrazac za upit na stranici (vjenčanje, krizma, matura); kaparu tražite i potvrđujete jednim dodirom.' },
 ];
 const CAT_LABEL = { BROWS: 'Obrve', FACE: 'Lice', MAKEUP: 'Šminka' };
@@ -1215,7 +1216,7 @@ async function viewSettings(v) {
 }
 
 // Zadana fotografija za „O meni” (dok Barbara ne doda svoju)
-const ABOUT_DEFAULT = '/assets/photos/barbara-o-meni.jpg';
+const ABOUT_DEFAULT = '/assets/photos/barbara-o-meni.jpg?v=2';
 
 // Smanji fotografiju u pregledniku (najviše 1600 px) prije slanja
 function shrinkImage(file) {

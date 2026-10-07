@@ -99,6 +99,7 @@ app.get('/api/config', wrap(async (req, res) => {
       events: settings.features.events,
       vouchers: settings.features.vouchers,
       reviews: settings.features.reviews,
+      priceList: settings.features.priceList,
     },
     eventKinds: settings.features.events ? EVENT_KINDS : undefined,
     vouchers: settings.features.vouchers
