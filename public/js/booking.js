@@ -301,10 +301,16 @@ function renderContact() {
   $('#loc-link').href = route;
 }
 
+// Zadana fotografija za „O meni”; postavlja se tek kad se zna je li Barbara dodala svoju (da se ne učitaju obje)
+const ABOUT_DEFAULT = '/assets/photos/barbara-o-meni.jpg';
+function showAboutPhoto(src) {
+  $('#about-photo').innerHTML = `<img src="${esc(src)}" alt="Barbara Skoko" width="1080" height="1350">`;
+}
+
 function renderGallery() {
   const items = state.config.gallery;
   const about = items.find((g) => g.caption === '#o-meni');
-  if (about) $('#about-photo').innerHTML = `<img src="/api/gallery/${about.id}" alt="Barbara Skoko">`;
+  showAboutPhoto(about ? `/api/gallery/${about.id}` : ABOUT_DEFAULT);
   const works = items.filter((g) => g.caption !== '#o-meni');
   if (!works.length) return;
   $('#radovi').hidden = false;
@@ -319,6 +325,7 @@ function renderGallery() {
     state.config = await api('/api/config');
   } catch {
     $('#svc-list').innerHTML = $('#price-list').innerHTML = '<p class="error">Stranica se trenutno ne može učitati. Pokušajte ponovno za koju minutu.</p>';
+    showAboutPhoto(ABOUT_DEFAULT);
     return;
   }
   if (state.config.rules.autoConfirm) $('#confirm-note').textContent = 'Termin se potvrđuje odmah, a potvrdu dobivate emailom.';
