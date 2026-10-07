@@ -4,6 +4,7 @@ import { nowLocal, addDays, parseYmd, toMin, wallMinutes } from './time.js';
 import { randomToken } from './auth.js';
 import { sendBookingEmail } from './email.js';
 import { emit } from './hooks.js';
+import { closedHolidays } from './holidays.js';
 
 export class UserError extends Error {
   constructor(message, status = 400) {
@@ -82,6 +83,7 @@ export async function slotsFor(serviceIds, date) {
   const settings = await getSettings();
   const services = await resolveServices(serviceIds);
   const { duration, step } = combine(services);
+  if (closedHolidays(settings, date, date)[date]) return [];
   const busy = (await busyMap({ query: q }, date, date))[date] || [];
   return daySlots({ date, hours: settings.hours, duration, step, busy, rules: settings.rules });
 }
@@ -94,12 +96,13 @@ export async function availableDays(serviceIds) {
   const now = nowLocal();
   const to = addDays(now.date, settings.rules.maxDaysAhead);
   const map = await busyMap({ query: q }, now.date, to);
+  const holidays = closedHolidays(settings, now.date, to);
   const days = {};
   for (let i = 0; i <= settings.rules.maxDaysAhead; i++) {
     const date = addDays(now.date, i);
-    days[date] = daySlots({ date, hours: settings.hours, duration, step, busy: map[date] || [], rules: settings.rules, now }).length;
+    days[date] = holidays[date] ? 0 : daySlots({ date, hours: settings.hours, duration, step, busy: map[date] || [], rules: settings.rules, now }).length;
   }
-  return { from: now.date, to, days };
+  return { from: now.date, to, days, holidays };
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -149,6 +152,8 @@ export async function createBooking(input, { fromAdmin = false } = {}) {
   const date = String(input.date || '');
   const start = toMin(String(input.time || ''));
   if (!parseYmd(date) || start == null) throw new UserError('Odaberite datum i vrijeme.');
+  const holiday = !fromAdmin && closedHolidays(settings, date, date)[date];
+  if (holiday) throw new UserError(`Taj dan salon ne radi (${holiday}). Odaberite drugi datum.`, 409);
   const { duration: baseDuration, price: basePrice, step } = combine(services);
   const duration = fromAdmin && input.duration ? Math.max(15, Math.min(600, Number(input.duration))) : baseDuration;
   const price = fromAdmin && input.price != null && input.price !== '' ? Number(input.price) : basePrice;

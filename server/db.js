@@ -82,6 +82,9 @@ CREATE TABLE IF NOT EXISTS bookings (
 );
 -- Tko je otkazao: 'klijentica' ili 'salon' (za analitiku)
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancelled_by TEXT;
+-- Podsjetnik „vrijeme je za novi termin” (dodatna mogućnost)
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS rebook_sent_at TIMESTAMPTZ;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS rebook_optout BOOLEAN NOT NULL DEFAULT FALSE;
 CREATE INDEX IF NOT EXISTS bookings_date_idx ON bookings (date);
 CREATE INDEX IF NOT EXISTS bookings_status_idx ON bookings (status);
 CREATE TABLE IF NOT EXISTS blocks (
@@ -128,6 +131,54 @@ CREATE TABLE IF NOT EXISTS waitlist (
   notified_at TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS waitlist_date_idx ON waitlist (date);
+CREATE TABLE IF NOT EXISTS inquiries (
+  id SERIAL PRIMARY KEY,
+  token TEXT NOT NULL UNIQUE,
+  kind TEXT NOT NULL DEFAULT 'vjencanje',
+  name TEXT NOT NULL,
+  phone TEXT NOT NULL DEFAULT '',
+  email TEXT NOT NULL DEFAULT '',
+  event_date TEXT NOT NULL,
+  ready_by TEXT NOT NULL DEFAULT '',
+  people INT NOT NULL DEFAULT 1,
+  location TEXT NOT NULL DEFAULT '',
+  note TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'novi',
+  deposit NUMERIC(8,2),
+  deposit_sent_at TIMESTAMPTZ,
+  deposit_paid_at TIMESTAMPTZ,
+  admin_note TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS vouchers (
+  id SERIAL PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,
+  token TEXT NOT NULL UNIQUE,
+  amount NUMERIC(8,2) NOT NULL,
+  balance NUMERIC(8,2) NOT NULL,
+  buyer_name TEXT NOT NULL DEFAULT '',
+  buyer_phone TEXT NOT NULL DEFAULT '',
+  buyer_email TEXT NOT NULL DEFAULT '',
+  recipient TEXT NOT NULL DEFAULT '',
+  message TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'naruceno',
+  source TEXT NOT NULL DEFAULT 'web',
+  expires_on TEXT,
+  redemptions JSONB NOT NULL DEFAULT '[]',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  paid_at TIMESTAMPTZ
+);
+CREATE TABLE IF NOT EXISTS reviews (
+  id SERIAL PRIMARY KEY,
+  booking_id INT UNIQUE REFERENCES bookings(id) ON DELETE CASCADE,
+  client_id INT REFERENCES clients(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  rating INT NOT NULL,
+  text TEXT NOT NULL DEFAULT '',
+  services TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'nova',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 CREATE TABLE IF NOT EXISTS email_log (
   id SERIAL PRIMARY KEY,
   booking_id INT,

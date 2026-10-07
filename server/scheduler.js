@@ -3,6 +3,8 @@ import { nowLocal, addDays, wallMinutes, toHHMM, formatDateHr, diffDays } from '
 import { rowToBooking } from './bookings.js';
 import { sendBookingEmail, sendRaw, buildCustom, adminEmail, baseUrl } from './email.js';
 import { sendBackup } from './backup.js';
+import { runRebook } from './rebook.js';
+import { reviewLink } from './reviews.js';
 
 let running = false;
 
@@ -10,7 +12,7 @@ let running = false;
 export async function runScheduledJobs(now = nowLocal()) {
   if (running) return { skipped: true };
   running = true;
-  const result = { reminders: 0, thanks: 0, summary: false, backup: false };
+  const result = { reminders: 0, thanks: 0, rebook: 0, summary: false, backup: false };
   try {
     const settings = await getSettings();
     const biz = settings.business;
@@ -42,10 +44,13 @@ export async function runScheduledJobs(now = nowLocal()) {
       for (const r of rows) {
         const claimed = await q('UPDATE bookings SET thanks_sent_at = now() WHERE id = $1 AND thanks_sent_at IS NULL RETURNING id', [r.id]);
         if (!claimed.rowCount) continue;
-        await sendBookingEmail('hvala', rowToBooking(r), biz);
+        const b = rowToBooking(r);
+        await sendBookingEmail('hvala', b, biz, { extra: settings.features.reviews ? { ownReviewUrl: reviewLink(b) } : {} });
         result.thanks++;
       }
     }
+
+    if (settings.features.rebook && now.min >= 10 * 60) result.rebook = await runRebook(settings, now);
 
     if (settings.notify.dailySummary && now.min >= 7 * 60 && settings.meta.lastSummary !== now.date) {
       await updateMeta({ lastSummary: now.date });

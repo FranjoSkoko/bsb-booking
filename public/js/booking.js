@@ -142,7 +142,10 @@ async function loadDays() {
     renderCalendar();
     if (first) await selectDate(first);
     else $('#slots-wrap').innerHTML = `<p class="empty">Trenutno nema slobodnih termina. Javite se na ${esc(state.config.business.phone)}.</p>`;
-    if (wanted && state.config.features?.waitlist) {
+    const holiday = wanted && state.days.holidays?.[wanted];
+    if (holiday) {
+      $('#wl-box').innerHTML = `<p class="wl-cta"><strong>${esc(fmtDate(wanted))}</strong> je praznik (${esc(holiday)}) i salon ne radi.</p>`;
+    } else if (wanted && state.config.features?.waitlist) {
       $('#wl-box').innerHTML = `<p class="wl-cta"><strong>${esc(fmtDate(wanted))}</strong> više nema slobodnih termina. <button type="button" class="btn-link" id="wl-open">Upišite se na listu čekanja za taj dan</button></p>`;
       $('#wl-open').addEventListener('click', () => openWaitlist(wanted));
     }
@@ -163,8 +166,9 @@ function renderCalendar() {
   for (let d = 1; d <= daysInMonth; d++) {
     const ymd = `${state.month}-${String(d).padStart(2, '0')}`;
     const n = state.days.days[ymd] || 0;
+    const holiday = state.days.holidays?.[ymd];
     const cls = ['cal-day', n ? 'avail' : '', ymd === state.date ? 'selected' : '', ymd === state.days.from ? 'today' : ''].join(' ');
-    cells += `<button type="button" class="${cls}" data-date="${ymd}" ${n ? '' : 'disabled'} aria-label="${fmtDate(ymd)}${n ? '' : ', nema termina'}">${d}</button>`;
+    cells += `<button type="button" class="${cls}" data-date="${ymd}" ${n ? '' : 'disabled'} aria-label="${fmtDate(ymd)}${holiday ? `, ${esc(holiday)}` : n ? '' : ', nema termina'}"${holiday ? ` title="${esc(holiday)}"` : ''}>${d}</button>`;
   }
   $('#cal').innerHTML = `
     <div class="cal-head">
@@ -388,6 +392,122 @@ function renderGallery() {
   $('#gallery').innerHTML = works.map((g) => `<figure><img src="/api/gallery/${g.id}" alt="${esc(g.caption || 'Rad Barbare Skoko')}" loading="lazy"></figure>`).join('');
 }
 
+// ---------- dodatne sekcije (uključuju se u administraciji) ----------
+const EMAIL_OK = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim());
+const contactProblem = (d) => (!d.name.trim() ? 'Upišite ime i prezime.'
+  : (d.phone.match(/\d/g) || []).length < 6 ? 'Upišite ispravan broj mobitela.'
+  : !EMAIL_OK(d.email) ? 'Upišite ispravnu email adresu.' : null);
+const starsHtml = (n) => `<span class="stars-view" aria-label="${n} od 5">${'★'.repeat(n)}<span>${'★'.repeat(5 - n)}</span></span>`;
+
+// Pozadine dodatnih sekcija se izmjenjuju, da dvije susjedne nisu iste boje
+function paintSections() {
+  const bg = (el) => ['bg-cream', 'bg-sand', 'bg-dark'].find((c) => el.classList.contains(c)) || '';
+  const list = $$('main > section').filter((el) => !el.hidden);
+  list.forEach((el, i) => {
+    if (!el.hasAttribute('data-alt')) return;
+    el.classList.remove('bg-cream', 'bg-sand');
+    const near = [bg(list[i - 1] || el), list[i + 1] ? bg(list[i + 1]) : ''];
+    const pick = ['', 'bg-cream', 'bg-sand'].find((c) => !near.includes(c));
+    if (pick) el.classList.add(pick);
+  });
+}
+
+function prefill(prefix) {
+  const c = storage('bsb_client') || {};
+  for (const k of ['name', 'phone', 'email']) if (c[k] && !$(`#${prefix}-${k}`).value) $(`#${prefix}-${k}`).value = c[k];
+}
+
+function renderReviews() {
+  const r = state.config.reviews;
+  if (!state.config.features?.reviews || !r?.count) return;
+  const withText = r.items.filter((x) => x.text);
+  $('#rating-sum').innerHTML = `${starsHtml(Math.round(r.avg))} <strong>${r.avg.toLocaleString('hr-HR', { minimumFractionDigits: 1 })}</strong> · ${r.count} ${r.count % 10 === 1 && r.count % 100 !== 11 ? 'ocjena' : r.count % 10 >= 2 && r.count % 10 <= 4 && (r.count % 100 < 12 || r.count % 100 > 14) ? 'ocjene' : 'ocjena'}`;
+  $('#reviews').innerHTML = withText.map((x) => `
+    <figure class="review">
+      ${starsHtml(x.rating)}
+      <blockquote>${esc(x.text).replace(/\n/g, '<br>')}</blockquote>
+      <figcaption>${esc(x.name)}${x.services ? ` <span>· ${esc(x.services)}</span>` : ''}</figcaption>
+    </figure>`).join('');
+  $('#dojmovi').hidden = false;
+}
+
+function renderVouchers() {
+  const v = state.config.vouchers;
+  if (!state.config.features?.vouchers || !v?.amounts?.length) return;
+  $('#v-amounts').innerHTML = v.amounts.map((a, i) => `<label class="amount"><input type="radio" name="v-amount" value="${a}" ${i === Math.min(1, v.amounts.length - 1) ? 'checked' : ''}><span>${km(a)}</span></label>`).join('');
+  $('#v-intro').textContent = `Bon vrijedi ${v.months} ${v.months % 10 === 1 && v.months !== 11 ? 'mjesec' : v.months % 10 >= 2 && v.months % 10 <= 4 && (v.months < 12 || v.months > 14) ? 'mjeseca' : 'mjeseci'} za sve usluge u salonu. Dobivate ga emailom, spreman za ispis ili za proslijediti.`;
+  $('#v-payment').textContent = v.payment || '';
+  $('#poklon-bon').hidden = false;
+  $('[data-feature-link="vouchers"]').hidden = false;
+  prefill('v');
+  $('#voucher-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('#v-error');
+    err.hidden = true;
+    const data = {
+      amount: Number($('input[name="v-amount"]:checked')?.value), recipient: $('#v-recipient').value, message: $('#v-message').value,
+      name: $('#v-name').value, phone: $('#v-phone').value, email: $('#v-email').value,
+      consent: $('#v-consent').checked, website: e.target.elements.website.value,
+    };
+    const problem = !data.amount ? 'Odaberite iznos bona.' : contactProblem(data) || (!data.consent ? 'Za narudžbu je potrebna privola za obradu podataka.' : null);
+    if (problem) { err.textContent = problem; err.hidden = false; return; }
+    const btn = $('#v-submit');
+    btn.disabled = true;
+    try {
+      await api('/api/vouchers', { method: 'POST', body: JSON.stringify(data) });
+      e.target.hidden = true;
+      $('#v-done').innerHTML = `<img src="/assets/icons/BSB_ikona_kvacica_tamna.png" alt="">
+        <h3>Hvala, narudžba je poslana</h3>
+        <p>Poklon bon ${esc(km(data.amount))}${data.recipient.trim() ? ` za ${esc(data.recipient.trim())}` : ''}. Potvrdu smo poslali na ${esc(data.email)}.</p>
+        ${v.payment ? `<p class="notice">${esc(v.payment)}</p>` : ''}`;
+      $('#v-done').hidden = false;
+      $('#v-done').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } catch (ex) {
+      err.textContent = ex.message;
+      err.hidden = false;
+      btn.disabled = false;
+    }
+  });
+}
+
+function renderEvents() {
+  const kinds = state.config.eventKinds;
+  if (!state.config.features?.events || !kinds) return;
+  $('#e-kind').innerHTML = Object.entries(kinds).map(([k, t]) => `<option value="${k}">${esc(t)}</option>`).join('');
+  $('#e-date').min = state.config.today;
+  $('#svecanosti').hidden = false;
+  $('[data-feature-link="events"]').hidden = false;
+  prefill('e');
+  $('#event-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('#e-error');
+    err.hidden = true;
+    const data = {
+      kind: $('#e-kind').value, date: $('#e-date').value, readyBy: $('#e-ready').value, people: Number($('#e-people').value) || 1,
+      location: $('#e-location').value, name: $('#e-name').value, phone: $('#e-phone').value, email: $('#e-email').value,
+      note: $('#e-note').value, consent: $('#e-consent').checked, website: e.target.elements.website.value,
+    };
+    const problem = !data.date ? 'Odaberite datum svečanosti.' : data.date < state.config.today ? 'Datum je već prošao.'
+      : contactProblem(data) || (!data.consent ? 'Za slanje upita potrebna je privola za obradu podataka.' : null);
+    if (problem) { err.textContent = problem; err.hidden = false; return; }
+    const btn = $('#e-submit');
+    btn.disabled = true;
+    try {
+      await api('/api/inquiries', { method: 'POST', body: JSON.stringify(data) });
+      e.target.hidden = true;
+      $('#e-done').innerHTML = `<img src="/assets/icons/BSB_ikona_kvacica_tamna.png" alt="">
+        <h3>Hvala, upit je poslan</h3>
+        <p>${esc(kinds[data.kind])} · ${esc(fmtDate(data.date).toLowerCase())}. Potvrdu smo poslali na ${esc(data.email)}, a Barbara će vam se javiti da se dogovorite oko detalja.</p>`;
+      $('#e-done').hidden = false;
+      $('#e-done').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } catch (ex) {
+      err.textContent = ex.message;
+      err.hidden = false;
+      btn.disabled = false;
+    }
+  });
+}
+
 // ---------- start ----------
 (async () => {
   $('#year').textContent = new Date().getFullYear();
@@ -412,6 +532,10 @@ function renderGallery() {
   renderServices();
   renderContact();
   renderGallery();
+  renderReviews();
+  renderVouchers();
+  renderEvents();
+  paintSections();
   if (state.selected.size && /^\d{4}-\d{2}-\d{2}$/.test(datum || '')) {
     state.date = datum;
     goStep(2);

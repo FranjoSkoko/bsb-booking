@@ -24,6 +24,8 @@
         <a href="#usluge">Usluge</a>
         <a href="#o-meni">O meni</a>
         <a href="#radovi" data-gallery-link hidden>Radovi</a>
+        <a href="#poklon-bon" data-feature-link="vouchers" hidden>Poklon bon</a>
+        <a href="#svecanosti" data-feature-link="events" hidden>Svečanosti</a>
         <a href="#kontakt">Kontakt</a>
         <a class="btn btn-small" href="#rezervacija">Rezervirajte</a>
       </nav>
@@ -137,6 +139,17 @@
       </div>
     </section>
 
+    <section id="dojmovi" data-alt hidden>
+      <div class="wrap">
+        <div class="section-head">
+          <span class="label">Dojmovi</span>
+          <h2>Što kažu <em>klijentice</em></h2>
+          <p class="rating-sum" id="rating-sum"></p>
+        </div>
+        <div class="reviews" id="reviews"></div>
+      </div>
+    </section>
+
     <section id="savjeti" class="bg-cream">
       <div class="wrap">
         <div class="section-head">
@@ -150,6 +163,60 @@
           <li><div><strong>Ponesite inspiraciju</strong><span>Fotografija looka i odjeća koju ćete nositi.</span></div></li>
           <li><div><strong>Planirajte vrijeme</strong><span>Šminkanje traje oko 60 minuta.</span></div></li>
         </ol>
+      </div>
+    </section>
+
+    <section id="poklon-bon" data-alt hidden>
+      <div class="wrap narrow">
+        <div class="section-head">
+          <span class="label">Poklon bon</span>
+          <h2>Poklonite <em>malo ljepote</em></h2>
+          <p class="muted" id="v-intro">Bon vrijedi za sve usluge u salonu. Dobivate ga emailom, spreman za ispis ili za proslijediti.</p>
+        </div>
+        <form id="voucher-form" class="form-grid" novalidate>
+          <div class="field"><span class="field-label">Iznos</span><div class="amounts" id="v-amounts"></div></div>
+          <div class="field"><label for="v-recipient">Za koga je bon (nije obavezno)</label><input id="v-recipient" maxlength="80" placeholder="npr. Ana"></div>
+          <div class="field"><label for="v-message">Poruka na bonu (nije obavezno)</label><textarea id="v-message" maxlength="300" placeholder="npr. Sretan rođendan!"></textarea></div>
+          <div class="field"><label for="v-name">Vaše ime i prezime</label><input id="v-name" autocomplete="name"></div>
+          <div class="field"><label for="v-phone">Broj mobitela</label><input id="v-phone" type="tel" autocomplete="tel" inputmode="tel"></div>
+          <div class="field"><label for="v-email">Email (na njega stiže bon)</label><input id="v-email" type="email" autocomplete="email" inputmode="email"></div>
+          <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <label class="check"><input type="checkbox" id="v-consent"><span>Slažem se s obradom osobnih podataka radi narudžbe bona. <a href="/privatnost" target="_blank">Više o privatnosti</a></span></label>
+          <p class="notice" id="v-payment"></p>
+          <p class="error" id="v-error" role="alert" hidden></p>
+          <div class="step-actions"><span></span><button class="btn" type="submit" id="v-submit">Naručite bon</button></div>
+        </form>
+        <div class="form-done" id="v-done" hidden></div>
+      </div>
+    </section>
+
+    <section id="svecanosti" data-alt hidden>
+      <div class="wrap narrow">
+        <div class="section-head">
+          <span class="label">Vjenčanja i svečanosti</span>
+          <h2>Vaš veliki dan, <em>bez brige</em></h2>
+          <p class="muted">Šminka za mladenke, krizme, mature i druge svečanosti. Pošaljite upit, a ja ću vam se javiti da se dogovorimo oko detalja.</p>
+        </div>
+        <form id="event-form" class="form-grid" novalidate>
+          <div class="grid-2">
+            <div class="field"><label for="e-kind">Prigoda</label><select id="e-kind"></select></div>
+            <div class="field"><label for="e-date">Datum</label><input id="e-date" type="date"></div>
+            <div class="field"><label for="e-ready">Trebate biti spremni do (nije obavezno)</label><input id="e-ready" type="time" step="900"></div>
+            <div class="field"><label for="e-people">Broj osoba za šminkanje</label><input id="e-people" type="number" min="1" max="30" value="1" inputmode="numeric"></div>
+          </div>
+          <div class="field"><label for="e-location">Mjesto svečanosti (nije obavezno)</label><input id="e-location" maxlength="120"></div>
+          <div class="field"><label for="e-name">Ime i prezime</label><input id="e-name" autocomplete="name"></div>
+          <div class="grid-2">
+            <div class="field"><label for="e-phone">Broj mobitela</label><input id="e-phone" type="tel" autocomplete="tel" inputmode="tel"></div>
+            <div class="field"><label for="e-email">Email</label><input id="e-email" type="email" autocomplete="email" inputmode="email"></div>
+          </div>
+          <div class="field"><label for="e-note">Napomena (nije obavezno)</label><textarea id="e-note" maxlength="500" placeholder="npr. željeni look, proba šminke, tko se još šminka"></textarea></div>
+          <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <label class="check"><input type="checkbox" id="e-consent"><span>Slažem se s obradom osobnih podataka radi odgovora na upit. <a href="/privatnost" target="_blank">Više o privatnosti</a></span></label>
+          <p class="error" id="e-error" role="alert" hidden></p>
+          <div class="step-actions"><span></span><button class="btn" type="submit" id="e-submit">Pošaljite upit</button></div>
+        </form>
+        <div class="form-done" id="e-done" hidden></div>
       </div>
     </section>
 
