@@ -1025,7 +1025,12 @@ async function viewSettings(v) {
   const bookUrl = `${status.baseUrl}/rezerviraj`;
   const aboutPhotos = cfg.gallery.filter((g) => g.caption === '#o-meni');
   const about = aboutPhotos[0];
-  const works = cfg.gallery.filter((g) => g.caption !== '#o-meni');
+  const works = cfg.gallery.filter((g) => !g.caption.startsWith('#'));
+  const browPairs = {};
+  for (const g of cfg.gallery) {
+    const m = /^#obrve:([a-f0-9]+):(prije|poslije)$/.exec(g.caption);
+    if (m) (browPairs[m[1]] ||= { key: m[1] })[m[2]] = g.id;
+  }
 
   v.innerHTML = `
     <h2>Postav<em>ke</em></h2>
@@ -1100,12 +1105,32 @@ async function viewSettings(v) {
       </div>
     </div>
 
-    <h3>Radovi</h3>
+    <h3>Radovi · Šminka i lookovi</h3>
     <div class="panel" style="padding:16px 20px">
-      <p class="small">Na stranici su već sekcije „Obrve – prije i poslije” i „Šminka i lookovi” s osam fotografija. Fotografije koje dodate ovdje prikazuju se uz lookove.</p>
+      <p class="small">Na stranici su četiri zadana looka. Fotografije koje dodate ovdje dolaze iza njih (5, 6 …). Prikazuju se po četiri, a ostale se otvaraju gumbom „Više lookova”.</p>
       ${works.length ? `<div class="thumbs" id="thumbs">${works.map((g) => `<figure><img src="/api/gallery/${g.id}" alt=""><button data-del-img="${g.id}" aria-label="Obriši">×</button></figure>`).join('')}</div>` : ''}
       <div class="toolbar" style="margin-top:12px">
-        <label class="btn btn-small btn-outline">Dodaj radove<input type="file" id="img-input" accept="image/*" multiple hidden></label>
+        <label class="btn btn-small btn-outline">Dodaj lookove<input type="file" id="img-input" accept="image/*" multiple hidden></label>
+      </div>
+    </div>
+
+    <h3>Radovi · Oblikovanje obrva</h3>
+    <div class="panel" style="padding:16px 20px">
+      <p class="small">Na stranici je jedan zadani par. Parovi koje dodate ovdje dolaze iza njega. Prikazuju se po dva, a ostali se otvaraju gumbom „Prikaži više”.</p>
+      ${Object.values(browPairs).map((p) => `<div class="pair-row">
+        ${['prije', 'poslije'].map((side) => p[side] ? `<figure><img src="/api/gallery/${p[side]}" alt=""><figcaption>${side === 'prije' ? 'Prije' : 'Poslije'}</figcaption></figure>` : '<figure class="missing"><figcaption>Nedostaje</figcaption></figure>').join('')}
+        <button class="btn-link" data-del-pair="${p.key}">Obriši par</button>
+      </div>`).join('')}
+      <div class="pair-new">
+        <div class="pair-row" id="pair-preview">
+          <label class="pair-pick"><span>+ Prije</span><input type="file" id="pair-before" accept="image/*" hidden></label>
+          <label class="pair-pick"><span>+ Poslije</span><input type="file" id="pair-after" accept="image/*" hidden></label>
+        </div>
+        <div class="toolbar" style="margin-top:12px">
+          <button class="btn btn-small btn-outline" id="pair-rotate" type="button" disabled>↺ Okreni obje</button>
+          <button class="btn btn-small" id="pair-add" type="button" disabled>Dodaj par</button>
+        </div>
+        <p class="small muted">Ako je fotografija snimljena položeno, okrenite je dok lice ne bude uspravno.</p>
       </div>
     </div>
 
@@ -1175,14 +1200,43 @@ async function viewSettings(v) {
     let ok = 0;
     for (const file of files) {
       try {
-        const dataUrl = await shrinkImage(file);
+        const dataUrl = await shrinkImage(file, 0, 0, LOOK_FORMAT);
         await api('/api/admin/gallery', { method: 'POST', body: { dataUrl, caption: '' } });
         ok++;
       } catch (err) { toast(err.message); }
     }
-    if (ok) toast(ok === 1 ? 'Rad je dodan.' : `Dodano radova: ${ok}.`);
+    if (ok) toast(ok === 1 ? 'Look je dodan.' : `Dodano lookova: ${ok}.`);
     render();
   });
+  // Novi par obrva: odabir, okretanje i spremanje
+  const pair = { prije: null, poslije: null, turns: 0 };
+  const showPair = async () => {
+    for (const [side, id] of [['prije', '#pair-before'], ['poslije', '#pair-after']]) {
+      const label = $(id, v).closest('.pair-pick');
+      label.querySelector('img')?.remove();
+      label.querySelector('span').textContent = `${pair[side] ? '' : '+ '}${side === 'prije' ? 'Prije' : 'Poslije'}`;
+      if (pair[side]) label.insertAdjacentHTML('afterbegin', `<img src="${await shrinkImage(pair[side], pair.turns, 0, { w: 400, h: 300 })}" alt="">`);
+    }
+    $('#pair-rotate', v).disabled = !(pair.prije || pair.poslije);
+    $('#pair-add', v).disabled = !(pair.prije && pair.poslije);
+  };
+  $('#pair-before', v).addEventListener('change', (e) => { pair.prije = e.target.files[0] || null; showPair().catch((err) => toast(err.message)); });
+  $('#pair-after', v).addEventListener('change', (e) => { pair.poslije = e.target.files[0] || null; showPair().catch((err) => toast(err.message)); });
+  $('#pair-rotate', v).addEventListener('click', () => { pair.turns = (pair.turns + 3) % 4; showPair().catch((err) => toast(err.message)); });
+  $('#pair-add', v).addEventListener('click', async (e) => {
+    e.target.disabled = true;
+    try {
+      const [before, after] = await Promise.all([shrinkImage(pair.prije, pair.turns, 0, BROW_FORMAT), shrinkImage(pair.poslije, pair.turns, 0, BROW_FORMAT)]);
+      await api('/api/admin/gallery/pair', { method: 'POST', body: { before, after } });
+      toast('Par obrva je dodan.');
+      render();
+    } catch (err) { toast(err.message); e.target.disabled = false; }
+  });
+  $$('[data-del-pair]', v).forEach((b) => b.addEventListener('click', async () => {
+    if (!confirm('Obrisati ovaj par fotografija?')) return;
+    await api(`/api/admin/gallery/pair/${b.dataset.delPair}`, { method: 'DELETE' });
+    render();
+  }));
   $('#about-input', v).addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -1219,15 +1273,43 @@ async function viewSettings(v) {
 const ABOUT_DEFAULT = '/assets/photos/barbara-o-meni.jpg?v=2';
 
 // Smanji fotografiju u pregledniku (najviše 1600 px) prije slanja
-function shrinkImage(file) {
+// Radovi se spremaju u istom formatu kao zadane fotografije na stranici
+const LOOK_FORMAT = { w: 960, h: 1280, top: true }; // 3:4, lice je u gornjem dijelu
+const BROW_FORMAT = { w: 1200, h: 900 }; // 4:3
+
+/**
+ * Smanji fotografiju i spremi je kao JPG. `turns` je okretanje za 90° u smjeru kazaljke.
+ * S `format` se izreže na točan omjer i veličinu ({ w, h, top }), inače samo smanji na najviše `max` px.
+ */
+function shrinkImage(file, turns = 0, max = 1600, format = null) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      const scale = Math.min(1, 1600 / Math.max(img.width, img.height));
+      const side = turns % 2 === 1;
+      const iw = side ? img.height : img.width; // dimenzije nakon okretanja
+      const ih = side ? img.width : img.height;
+      let sx = 0, sy = 0, sw = iw, sh = ih, w, h;
+      if (format) {
+        const ratio = format.w / format.h;
+        if (iw / ih > ratio) { sw = ih * ratio; sx = (iw - sw) / 2; } else { sh = iw / ratio; sy = format.top ? 0 : (ih - sh) / 2; }
+        const scale = Math.min(1, format.w / sw);
+        w = Math.round(sw * scale); h = Math.round(sh * scale);
+      } else {
+        const scale = Math.min(1, max / Math.max(iw, ih));
+        w = Math.round(iw * scale); h = Math.round(ih * scale);
+      }
+      // Okreni cijelu sliku na pomoćno platno, pa izreži i smanji
+      const r = document.createElement('canvas');
+      r.width = iw; r.height = ih;
+      const rc = r.getContext('2d');
+      rc.translate(iw / 2, ih / 2);
+      rc.rotate((turns * Math.PI) / 2);
+      rc.drawImage(img, -img.width / 2, -img.height / 2);
       const c = document.createElement('canvas');
-      c.width = Math.round(img.width * scale);
-      c.height = Math.round(img.height * scale);
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      c.width = w; c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(r, sx, sy, sw, sh, 0, 0, w, h);
       URL.revokeObjectURL(img.src);
       resolve(c.toDataURL('image/jpeg', 0.85));
     };

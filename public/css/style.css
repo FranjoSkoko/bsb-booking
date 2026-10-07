@@ -129,8 +129,9 @@ section { padding: clamp(64px, 10vw, 112px) 0; }
 }
 
 /* Radovi: obrve prije i poslije, šminka i lookovi */
-.ba-list { display: grid; gap: clamp(28px, 5vw, 48px); max-width: 960px; margin: 0 auto; }
-.ba { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
+/* Par obrva: prije i poslije jedno uz drugo; na računalu dva para u redu (kao četiri looka) */
+.ba-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 24px 12px; }
+.ba { flex: 0 1 calc(50% - 6px); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
 .work { position: relative; display: block; width: 100%; margin: 0; padding: 0; border: 0; overflow: hidden; background: var(--cream); cursor: zoom-in; }
 .work img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform .6s ease; }
 .work:hover img { transform: scale(1.03); }
@@ -145,10 +146,13 @@ section { padding: clamp(64px, 10vw, 112px) 0; }
 .looks .work { aspect-ratio: 3 / 4; }
 @media (max-width: 760px) {
   .looks { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .ba-list { gap: 16px; }
+  .ba { flex-basis: 100%; gap: 8px; }
+  .work .tag { left: 8px; top: 8px; padding: 4px 9px; font-size: 10px; letter-spacing: .12em; }
 }
-@media (max-width: 600px) {
-  .ba { grid-template-columns: 1fr; gap: 6px; }
-}
+
+.more { text-align: center; }
+.more .btn { margin-top: 32px; }
 
 /* Povećana fotografija */
 .lightbox { padding: 0; border: 0; background: transparent; max-width: 100vw; max-height: 100vh; width: 100vw; height: 100vh; }
