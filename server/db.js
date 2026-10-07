@@ -134,6 +134,8 @@ export async function getSettings() {
   for (const r of rows) out[r.key] = { ...(out[r.key] || {}), ...r.value };
   // Prazna adresa ili lokacija za kartu → zadana vrijednost salona
   for (const k of ['address', 'mapQuery']) if (!out.business[k]) out.business[k] = DEFAULT_SETTINGS.business[k];
+  // Raniji zadani tekst za kartu zamijeni točnim koordinatama
+  if (out.business.mapQuery === 'Elbas Apartman, Ivana Zajca, Široki Brijeg') out.business.mapQuery = DEFAULT_SETTINGS.business.mapQuery;
   return out;
 }
 

@@ -16,7 +16,7 @@ export const DEFAULT_SETTINGS = {
     owner: 'Barbara Skoko',
     address: 'Ivana Zajca II-2',
     // Što se traži na Google karti (naziv mjesta ili koordinate "43.38, 17.59")
-    mapQuery: 'Elbas Apartman, Ivana Zajca, Široki Brijeg',
+    mapQuery: '43.3751761, 17.6075204', // Elbas Apartman, ista kuća
     city: 'Široki Brijeg',
     phone: '+387 63 674 074',
     whatsapp: 'https://wa.me/38763674074',
