@@ -20,6 +20,13 @@ Web aplikacija za rezervaciju termina (makeup i obrve, Široki Brijeg). Klijenti
   - Obavijesti na mobitel (Web Push) za nove zahtjeve, otkazivanja i upise na listu čekanja. Na iPhoneu administraciju treba dodati na početni zaslon (Safari → Dijeli → Dodaj na početni zaslon). Ključevi se stvore sami; po želji se mogu zadati varijablama VAPID_PUBLIC_KEY i VAPID_PRIVATE_KEY.
   - Tjedna sigurnosna kopija: ponedjeljkom ujutro na Barbarin email stiže JSON sa svim podacima (bez slika) i CSV termina. Može se poslati ili preuzeti i ručno.
   - Lista čekanja: na stranici za rezervaciju klijentica se upiše za dan; kad se termin oslobodi (otkazivanje, odbijanje, pomicanje, brisanje blokade), dobije email sa slobodnim vremenima i linkom. Upisi se vide pod Zahtjevi.
+  - Kalendar na mobitelu: tajni link `/kalendar/<token>.ics` na koji se iPhone ili Google kalendar pretplati; sadrži dogovorene termine i blokade od prije 60 dana nadalje. Link se može zamijeniti novim.
+  - Praznici (`server/holidays.js`, Uskrs se računa sam): odabrani praznici zatvoreni su za online rezervacije i listu čekanja; Barbara i dalje može ručno upisati termin.
+  - Podsjetnik za novi termin: N dana nakon usluge (po kategoriji, npr. obrve 35) klijentica dobije email s linkom na istu uslugu, osim ako već ima novi termin; najviše jednom u 14 dana, s odjavom jednim klikom.
+  - Recenzije: email zahvale dobije gumb „Ocijenite termin” (`/recenzija/<token>`), Barbara ih objavljuje pod Klijentice, a objavljene se vide u sekciji „Dojmovi”.
+  - Poklon bonovi: narudžba na stranici, Barbara označi plaćeno (kupac dobije bon za ispis `/bon/<token>`), u salonu se iskorištava po kodu, i djelomično. Bon se može napraviti i u salonu.
+  - Vjenčanja i svečanosti: obrazac za upit na stranici, upiti pod Zahtjevi, upute za kaparu i potvrda datuma jednim dodirom.
+  - Obavijesti, kopija i lista čekanja uključene su po zadanom; ostalih šest su isključene dok ih Barbara ne upali.
 - Analitika (mjesec, godina, sve): promet od odrađenih termina, odrađeno / otkazano / nije došla, promet po mjesecima, usluge, dani i sati, nove i povratne klijentice, popunjenost radnog vremena, klijentice kojima je vrijeme za poruku i preuzimanje termina za Excel (CSV). Odrađeno = potvrđen termin koji je prošao.
 - Postavke: usluge i cijene, radno vrijeme, pravila, adresa, fotografija za „O meni” (zadana je `public/assets/photos/barbara-o-meni.jpg`), radovi, probni emailovi i popis poslanih emailova.
 - Link za Instagram bio: `/rezerviraj` (ili `/rezerviraj?usluga=sminkanje`).
