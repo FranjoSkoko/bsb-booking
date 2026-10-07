@@ -16,7 +16,7 @@ Web aplikacija za rezervaciju termina (makeup i obrve, Široki Brijeg). Klijenti
 - Kalendar (tjedan i mjesec), ručni upis termina (telefonom dogovoreni), pomicanje termina, „nije došla”.
 - Blokiranje dana ili sati (godišnji, privatne obaveze).
 - Karton klijentica: povijest posjeta, bilješke, brisanje podataka na zahtjev.
-- Postavke: usluge i cijene, radno vrijeme, pravila, adresa, galerija, probni emailovi i popis poslanih emailova.
+- Postavke: usluge i cijene, radno vrijeme, pravila, adresa, fotografija za „O meni” (zadana je `public/assets/photos/barbara-o-meni.jpg`), radovi, probni emailovi i popis poslanih emailova.
 - Link za Instagram bio: `/rezerviraj` (ili `/rezerviraj?usluga=sminkanje`).
 
 **Emailovi (automatski)**

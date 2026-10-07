@@ -464,6 +464,9 @@ async function viewSettings(v) {
   const { business: biz, hours, rules, notify } = settings;
   const order = [1, 2, 3, 4, 5, 6, 0];
   const bookUrl = `${status.baseUrl}/rezerviraj`;
+  const aboutPhotos = cfg.gallery.filter((g) => g.caption === '#o-meni');
+  const about = aboutPhotos[0];
+  const works = cfg.gallery.filter((g) => g.caption !== '#o-meni');
 
   v.innerHTML = `
     <h2>Postav<em>ke</em></h2>
@@ -523,13 +526,24 @@ async function viewSettings(v) {
     </div>
     <div class="btn-row"><button class="btn" id="settings-save">Spremi postavke</button></div>
 
-    <h3>Fotografije</h3>
+    <h3>Fotografija za „O meni”</h3>
+    <div class="panel about-edit">
+      <div class="about-current"><img src="${about ? `/api/gallery/${about.id}` : ABOUT_DEFAULT}" alt="Fotografija u sekciji O meni"></div>
+      <div>
+        <p class="small">${about ? 'Prikazuje se fotografija koju ste dodali.' : 'Prikazuje se zadana fotografija.'} Najbolje izgleda uspravna fotografija omjera 4:5.</p>
+        <div class="toolbar">
+          <label class="btn btn-small btn-outline">Promijeni fotografiju<input type="file" id="about-input" accept="image/*" hidden></label>
+          ${about ? '<button class="btn-link" id="about-reset">Vrati zadanu</button>' : ''}
+        </div>
+      </div>
+    </div>
+
+    <h3>Radovi</h3>
     <div class="panel" style="padding:16px 20px">
-      <p class="small">Radovi se prikazuju u galeriji na stranici. Jednu fotografiju možete označiti za odjeljak „O meni”.</p>
-      <div class="thumbs" id="thumbs">${cfg.gallery.map((g) => `<figure><img src="/api/gallery/${g.id}" alt="">${g.caption === '#o-meni' ? '<figcaption>O meni</figcaption>' : ''}<button data-del-img="${g.id}" aria-label="Obriši">×</button></figure>`).join('')}</div>
+      <p class="small">Fotografije radova prikazuju se u sekciji „Radovi” na stranici. Dok ovdje nema nijedne, ta se sekcija ne prikazuje.</p>
+      ${works.length ? `<div class="thumbs" id="thumbs">${works.map((g) => `<figure><img src="/api/gallery/${g.id}" alt=""><button data-del-img="${g.id}" aria-label="Obriši">×</button></figure>`).join('')}</div>` : ''}
       <div class="toolbar" style="margin-top:12px">
-        <label class="btn btn-small btn-outline">Dodaj fotografije<input type="file" id="img-input" accept="image/*" multiple hidden></label>
-        <label class="check small"><input type="checkbox" id="img-about"> za „O meni”</label>
+        <label class="btn btn-small btn-outline">Dodaj radove<input type="file" id="img-input" accept="image/*" multiple hidden></label>
       </div>
     </div>
 
@@ -594,13 +608,31 @@ async function viewSettings(v) {
 
   $('#img-input', v).addEventListener('change', async (e) => {
     const files = [...e.target.files];
+    let ok = 0;
     for (const file of files) {
       try {
         const dataUrl = await shrinkImage(file);
-        await api('/api/admin/gallery', { method: 'POST', body: { dataUrl, caption: $('#img-about').checked ? '#o-meni' : '' } });
+        await api('/api/admin/gallery', { method: 'POST', body: { dataUrl, caption: '' } });
+        ok++;
       } catch (err) { toast(err.message); }
     }
-    toast('Fotografije dodane.');
+    if (ok) toast(ok === 1 ? 'Rad je dodan.' : `Dodano radova: ${ok}.`);
+    render();
+  });
+  $('#about-input', v).addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const dataUrl = await shrinkImage(file);
+      await api('/api/admin/gallery', { method: 'POST', body: { dataUrl, caption: '#o-meni' } });
+      toast('Fotografija za „O meni” je promijenjena.');
+    } catch (err) { toast(err.message); }
+    render();
+  });
+  $('#about-reset', v)?.addEventListener('click', async () => {
+    if (!confirm('Vratiti zadanu fotografiju u „O meni”?')) return;
+    for (const g of aboutPhotos) await api(`/api/admin/gallery/${g.id}`, { method: 'DELETE' });
+    toast('Vraćena je zadana fotografija.');
     render();
   });
   $$('[data-del-img]', v).forEach((b) => b.addEventListener('click', async () => {
@@ -618,6 +650,9 @@ async function viewSettings(v) {
     } catch (err) { toast(err.message); } finally { e.target.disabled = false; }
   });
 }
+
+// Zadana fotografija za „O meni” (dok Barbara ne doda svoju)
+const ABOUT_DEFAULT = '/assets/photos/barbara-o-meni.jpg';
 
 // Smanji fotografiju u pregledniku (najviše 1600 px) prije slanja
 function shrinkImage(file) {

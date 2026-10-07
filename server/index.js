@@ -59,7 +59,7 @@ app.get('/admin', (req, res) => res.sendFile(path.join(PUBLIC, 'admin', 'index.h
 app.use(express.static(PUBLIC, {
   extensions: ['html'],
   setHeaders(res, file) {
-    if (/\.(png|svg|ttf|woff2?)$/.test(file)) res.set('Cache-Control', 'public, max-age=604800');
+    if (/\.(png|jpe?g|webp|svg|ttf|woff2?)$/.test(file)) res.set('Cache-Control', 'public, max-age=604800');
     else res.set('Cache-Control', 'no-cache');
   },
 }));
@@ -442,8 +442,13 @@ admin.post('/gallery', express.json({ limit: '12mb' }), wrap(async (req, res) =>
   if (!m) throw new UserError('Učitajte sliku (JPG, PNG ili WEBP).');
   const data = Buffer.from(m[2], 'base64');
   if (data.length > 8 * 1024 * 1024) throw new UserError('Slika je prevelika (najviše 8 MB).');
-  const r = await q('INSERT INTO gallery (mime, data, caption, sort) VALUES ($1,$2,$3,0) RETURNING id, caption', [m[1], data, String(req.body.caption || '').slice(0, 200)]);
-  res.status(201).json(r.rows[0]);
+  const caption = String(req.body.caption || '').slice(0, 200);
+  const row = await tx(async (db) => {
+    // Za „O meni” postoji samo jedna fotografija – nova zamjenjuje staru
+    if (caption === '#o-meni') await db.query(`DELETE FROM gallery WHERE caption = '#o-meni'`);
+    return (await db.query('INSERT INTO gallery (mime, data, caption, sort) VALUES ($1,$2,$3,0) RETURNING id, caption', [m[1], data, caption])).rows[0];
+  });
+  res.status(201).json(row);
 }));
 
 admin.delete('/gallery/:id', wrap(async (req, res) => {
