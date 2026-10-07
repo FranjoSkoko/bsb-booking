@@ -385,11 +385,69 @@ function renderGallery() {
   const items = state.config.gallery;
   const about = items.find((g) => g.caption === '#o-meni');
   showAboutPhoto(about ? `/api/gallery/${about.id}` : ABOUT_DEFAULT);
-  const works = items.filter((g) => g.caption !== '#o-meni');
-  if (!works.length) return;
-  $('#radovi').hidden = false;
-  $('[data-gallery-link]').hidden = false;
-  $('#gallery').innerHTML = works.map((g) => `<figure><img src="/api/gallery/${g.id}" alt="${esc(g.caption || 'Rad Barbare Skoko')}" loading="lazy"></figure>`).join('');
+  // Fotografije koje Barbara doda u administraciji (Radovi) dolaze uz lookove
+  const uploads = items.filter((g) => g.caption !== '#o-meni').map((g) => ({ src: `/api/gallery/${g.id}`, alt: g.caption || 'Rad Barbare Skoko', cap: g.caption || '' }));
+  renderWorks(uploads);
+}
+
+// ---------- radovi: obrve prije i poslije, šminka i lookovi ----------
+const W = '/assets/radovi/';
+const BROWS = [
+  { before: 'obrve-2-prije.jpg', after: 'obrve-2-poslije.jpg' },
+];
+const LOOKS = ['look-1.jpg', 'look-2.jpg', 'look-3.jpg', 'look-4.jpg'];
+let lbItems = [];
+let lbIndex = 0;
+
+function workHtml(item, i, tag = '') {
+  return `<button type="button" class="work" data-work="${i}" aria-label="Povećaj: ${esc(item.alt)}">
+    <img src="${esc(item.src)}" alt="${esc(item.alt)}" loading="lazy">${tag}</button>`;
+}
+
+function renderWorks(uploads = []) {
+  lbItems = [];
+  const add = (item) => lbItems.push(item) - 1;
+  $('#ba-list').innerHTML = BROWS.map((p) => {
+    const b = add({ src: W + p.before, alt: 'Obrve prije oblikovanja', cap: 'Prije' });
+    const a = add({ src: W + p.after, alt: 'Obrve nakon oblikovanja', cap: 'Poslije' });
+    return `<div class="ba">${workHtml(lbItems[b], b, '<span class="tag">Prije</span>')}${workHtml(lbItems[a], a, '<span class="tag after">Poslije</span>')}</div>`;
+  }).join('');
+  const looks = [...LOOKS.map((f, n) => ({ src: W + f, alt: `Šminka – look ${n + 1}`, cap: '' })), ...uploads];
+  $('#looks').innerHTML = looks.map((it) => workHtml(it, add(it))).join('');
+}
+
+function openLightbox(i) {
+  const dlg = $('#lightbox');
+  lbIndex = (i + lbItems.length) % lbItems.length;
+  const it = lbItems[lbIndex];
+  Object.assign($('#lb-img'), { src: it.src, alt: it.alt });
+  $('#lb-cap').textContent = `${it.cap ? `${it.cap} · ` : ''}${lbIndex + 1} / ${lbItems.length}`;
+  if (!dlg.open) dlg.showModal();
+}
+
+function setupLightbox() {
+  const dlg = $('#lightbox');
+  document.addEventListener('click', (e) => {
+    const w = e.target.closest('[data-work]');
+    if (w) openLightbox(Number(w.dataset.work));
+  });
+  dlg.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-lb]');
+    if (b) return b.dataset.lb === 'close' ? dlg.close() : openLightbox(lbIndex + Number(b.dataset.lb));
+    if (e.target.tagName !== 'IMG') dlg.close(); // klik pokraj slike zatvara
+  });
+  dlg.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') openLightbox(lbIndex - 1);
+    if (e.key === 'ArrowRight') openLightbox(lbIndex + 1);
+  });
+  let x0 = null;
+  dlg.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; }, { passive: true });
+  dlg.addEventListener('touchend', (e) => {
+    if (x0 === null) return;
+    const dx = e.changedTouches[0].clientX - x0;
+    x0 = null;
+    if (Math.abs(dx) > 40) openLightbox(lbIndex + (dx < 0 ? 1 : -1));
+  });
 }
 
 // ---------- dodatne sekcije (uključuju se u administraciji) ----------
@@ -511,6 +569,8 @@ function renderEvents() {
 // ---------- start ----------
 (async () => {
   $('#year').textContent = new Date().getFullYear();
+  renderWorks();
+  setupLightbox();
   try {
     state.config = await api('/api/config');
   } catch {

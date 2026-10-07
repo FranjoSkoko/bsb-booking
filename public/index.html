@@ -23,7 +23,7 @@
       <nav class="nav" aria-label="Glavni izbornik">
         <a href="#o-meni">O meni</a>
         <a href="#usluge" data-feature-link="priceList" hidden>Usluge</a>
-        <a href="#radovi" data-gallery-link hidden>Radovi</a>
+        <a href="#lookovi">Radovi</a>
         <a href="#poklon-bon" data-feature-link="vouchers" hidden>Poklon bon</a>
         <a href="#svecanosti" data-feature-link="events" hidden>Svečanosti</a>
         <a href="#kontakt">Kontakt</a>
@@ -128,13 +128,14 @@
       </div>
     </section>
 
-    <section id="radovi" data-alt hidden>
+    <section id="lookovi" data-alt>
       <div class="wrap">
         <div class="section-head">
-          <span class="label">Radovi</span>
-          <h2>Iz <em>salona</em></h2>
+          <span class="label">Radovi · Šminka</span>
+          <h2>Šminka <em>i lookovi</em></h2>
+          <p class="muted">Od prirodnog dnevnog do svečanog looka.</p>
         </div>
-        <div class="gallery" id="gallery"></div>
+        <div class="looks" id="looks"></div>
       </div>
     </section>
 
@@ -162,6 +163,17 @@
           <li><div><strong>Ponesite inspiraciju</strong><span>Fotografija looka i odjeća koju ćete nositi.</span></div></li>
           <li><div><strong>Planirajte vrijeme</strong><span>Šminkanje traje oko 60 minuta.</span></div></li>
         </ol>
+      </div>
+    </section>
+
+    <section id="obrve">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="label">Radovi · Obrve</span>
+          <h2>Oblikovanje <em>obrva</em></h2>
+          <p class="muted">Koncem, kanom ili klasično – uvijek prema obliku vašeg lica.</p>
+        </div>
+        <div class="ba-list" id="ba-list"></div>
       </div>
     </section>
 
@@ -237,6 +249,13 @@
       </div>
     </section>
   </main>
+
+  <dialog class="lightbox" id="lightbox" aria-label="Fotografija rada">
+    <figure><img id="lb-img" alt=""><figcaption id="lb-cap"></figcaption></figure>
+    <button class="lb-btn lb-close" type="button" data-lb="close" aria-label="Zatvori">×</button>
+    <button class="lb-btn lb-prev" type="button" data-lb="-1" aria-label="Prethodna">‹</button>
+    <button class="lb-btn lb-next" type="button" data-lb="1" aria-label="Sljedeća">›</button>
+  </dialog>
 
   <footer class="site-footer">
     © <span id="year">2026</span> Barbara Skoko Beauty · Makeup · Threading · Široki Brijeg<br>
