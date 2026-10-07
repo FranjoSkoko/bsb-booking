@@ -5,6 +5,7 @@ import { UserError, resolveServices, slotsFor, cleanInput } from './bookings.js'
 import { nowLocal, addDays, dayOfWeek, parseYmd, formatDateHr, toHHMM } from './time.js';
 import { buildCustom, sendRaw, baseUrl } from './email.js';
 import { notifyAdmin } from './push.js';
+import { closedHolidays } from './holidays.js';
 
 export const PARTS = { bilo_kada: 'bilo kada', prijepodne: 'prijepodne (do 12 h)', poslijepodne: 'poslijepodne (od 12 h)' };
 const ACTIVE = ['ceka', 'obavijestena'];
@@ -27,6 +28,8 @@ export async function addToWaitlist(input) {
   const now = nowLocal();
   if (!parseYmd(date) || date < now.date || date > addDays(now.date, settings.rules.maxDaysAhead)) throw new UserError('Odaberite datum unutar razdoblja za rezervacije.');
   if (!settings.hours[dayOfWeek(date)]) throw new UserError('Taj dan salon ne radi.');
+  const holiday = closedHolidays(settings, date, date)[date];
+  if (holiday) throw new UserError(`Taj dan salon ne radi (${holiday}).`);
   const part = PARTS[input.part] ? input.part : 'bilo_kada';
   const list = JSON.stringify(services.map((s) => ({ id: s.id, name: s.name })));
 

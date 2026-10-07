@@ -178,7 +178,14 @@ const TEMPLATES = {
   }),
   hvala: (v, extra) => ({
     subject: 'Hvala što ste bili kod mene 🤍',
-    lines: [
+    lines: extra.ownReviewUrl ? [
+      `Bok ${v.ime},`,
+      'hvala vam na povjerenju! Nadam se da ste zadovoljni svojim lookom.',
+      'Ako imate minutu, ocijenite termin – vaš dojam pomaže drugim klijenticama, a meni puno znači.',
+      { button: 'Ocijenite termin', href: extra.ownReviewUrl },
+      `Slobodno me označite i na Instagramu (${a(extra.instagramUrl, extra.instagram)}).`,
+      'Barbara',
+    ] : [
       `Bok ${v.ime},`,
       'hvala vam na povjerenju! Nadam se da ste zadovoljni svojim lookom.',
       extra.reviewUrl

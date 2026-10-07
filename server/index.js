@@ -16,6 +16,9 @@ import { registerExtras, cleanExtras } from './extras.js';
 import { DEFAULT_SETTINGS } from './defaults.js';
 import { emit } from './hooks.js';
 import { computeStats, chartMonths, monthlySeries, bookingsCsv } from './stats.js';
+import { closedHolidays } from './holidays.js';
+import { publicReviews } from './reviews.js';
+import { EVENT_KINDS } from './inquiries.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, '..', 'public');
@@ -91,7 +94,17 @@ app.get('/api/config', wrap(async (req, res) => {
     },
     services,
     gallery,
-    features: { waitlist: settings.features.waitlist },
+    features: {
+      waitlist: settings.features.waitlist,
+      events: settings.features.events,
+      vouchers: settings.features.vouchers,
+      reviews: settings.features.reviews,
+    },
+    eventKinds: settings.features.events ? EVENT_KINDS : undefined,
+    vouchers: settings.features.vouchers
+      ? { amounts: settings.extras.voucherAmounts, payment: settings.extras.voucherPayment, months: settings.extras.voucherMonths }
+      : undefined,
+    reviews: settings.features.reviews ? await publicReviews() : undefined,
     today: nowLocal().date,
   });
 }));
@@ -282,7 +295,8 @@ admin.get('/bookings', wrap(async (req, res) => {
   if (status) { params.push(String(status).split(',')); where.push(`status = ANY($${params.length})`); }
   const r = await q(`SELECT * FROM bookings ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY date, start_min LIMIT 1000`, params);
   const blocks = from && to ? (await q('SELECT * FROM blocks WHERE date BETWEEN $1 AND $2 ORDER BY date, start_min NULLS FIRST', [from, to])).rows : [];
-  res.json({ bookings: r.rows.map(rowToBooking), blocks });
+  const holidays = parseYmd(from) && parseYmd(to) ? closedHolidays(await getSettings(), from, to) : {};
+  res.json({ bookings: r.rows.map(rowToBooking), blocks, holidays });
 }));
 
 admin.get('/pending', wrap(async (req, res) => {
@@ -506,6 +520,7 @@ admin.delete('/clients/:id', wrap(async (req, res) => {
   const id = Number(req.params.id);
   await tx(async (db) => {
     await db.query(`UPDATE bookings SET name = 'Obrisano', phone = '', email = '', note = '' WHERE client_id = $1`, [id]);
+    await db.query('DELETE FROM reviews WHERE client_id = $1', [id]);
     await db.query('DELETE FROM clients WHERE id = $1', [id]);
   });
   res.json({ ok: true });

@@ -1,6 +1,6 @@
 import { toHHMM } from './time.js';
 
-const VTIMEZONE = [
+export const VTIMEZONE = [
   'BEGIN:VTIMEZONE',
   'TZID:Europe/Sarajevo',
   'BEGIN:DAYLIGHT',
@@ -20,11 +20,11 @@ const VTIMEZONE = [
   'END:VTIMEZONE',
 ];
 
-const esc = (s) => String(s).replace(/[\\;,]/g, (c) => '\\' + c).replace(/\n/g, '\\n');
-const stamp = (date, min) => `${date.replace(/-/g, '')}T${toHHMM(min).replace(':', '')}00`;
+export const esc = (s) => String(s).replace(/[\\;,]/g, (c) => '\\' + c).replace(/\n/g, '\\n');
+export const stamp = (date, min) => `${date.replace(/-/g, '')}T${toHHMM(min).replace(':', '')}00`;
 
 // Redovi duži od 75 bajtova lome se u nastavke (RFC 5545), bez rezanja slova poput "š" na pola
-function fold(line) {
+export function fold(line) {
   const out = [];
   let cur = '';
   let limit = 75;
@@ -67,6 +67,67 @@ export function bookingIcs(b, business, baseUrl) {
     'DESCRIPTION:Termin kod Barbare',
     'END:VALARM',
     'END:VEVENT',
+    'END:VCALENDAR',
+  ].map(fold).join('\r\n') + '\r\n';
+}
+
+const utcStamp = (d = new Date()) => d.toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z';
+
+/**
+ * Pretplata na kalendar za Barbaru (iPhone / Google kalendar): svi dogovoreni termini i blokade.
+ * Kalendar ga sam osvježava; otkazani termini jednostavno nestanu.
+ */
+export function calendarFeedIcs({ bookings, blocks = [], business, baseUrl }) {
+  const events = bookings.map((b) => {
+    const names = b.services.map((s) => s.name).join(' + ');
+    const pending = b.status === 'na_cekanju';
+    const info = [
+      `${names} · ${Number(b.total_price).toLocaleString('hr-HR')} KM`,
+      [b.phone, b.email].filter(Boolean).join(' · '),
+      b.note ? `Napomena: ${b.note}` : '',
+      b.admin_note ? `Bilješka: ${b.admin_note}` : '',
+      pending ? 'Zahtjev još nije potvrđen.' : '',
+      `${baseUrl}/admin`,
+    ].filter(Boolean).join('\n');
+    return [
+      'BEGIN:VEVENT',
+      `UID:bsb-termin-${b.id}@barbaraskokobeauty`,
+      `DTSTAMP:${utcStamp()}`,
+      `STATUS:${pending ? 'TENTATIVE' : 'CONFIRMED'}`,
+      `DTSTART;TZID=Europe/Sarajevo:${stamp(b.date, b.start_min)}`,
+      `DTEND;TZID=Europe/Sarajevo:${stamp(b.date, b.start_min + b.duration)}`,
+      `SUMMARY:${esc(`${pending ? '(na čekanju) ' : ''}${b.name} · ${names}`)}`,
+      `DESCRIPTION:${esc(info)}`,
+      'END:VEVENT',
+    ];
+  });
+  const blockEvents = blocks.map((bl) => {
+    const allDay = bl.start_min == null;
+    const next = new Date(Date.parse(bl.date + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10);
+    return [
+      'BEGIN:VEVENT',
+      `UID:bsb-blokada-${bl.id}@barbaraskokobeauty`,
+      `DTSTAMP:${utcStamp()}`,
+      allDay ? `DTSTART;VALUE=DATE:${bl.date.replace(/-/g, '')}` : `DTSTART;TZID=Europe/Sarajevo:${stamp(bl.date, bl.start_min)}`,
+      allDay ? `DTEND;VALUE=DATE:${next.replace(/-/g, '')}` : `DTEND;TZID=Europe/Sarajevo:${stamp(bl.date, bl.end_min)}`,
+      `SUMMARY:${esc(`Blokirano${bl.reason ? ` · ${bl.reason}` : ''}`)}`,
+      'TRANSP:OPAQUE',
+      'END:VEVENT',
+    ];
+  });
+  return [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Barbara Skoko Beauty//Kalendar termina//HR',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    `X-WR-CALNAME:${esc(`${business.name || 'BSB'} – termini`)}`,
+    'X-WR-TIMEZONE:Europe/Sarajevo',
+    'REFRESH-INTERVAL;VALUE=DURATION:PT15M',
+    'X-PUBLISHED-TTL:PT15M',
+    ...VTIMEZONE,
+    ...events.flat(),
+    ...blockEvents.flat(),
     'END:VCALENDAR',
   ].map(fold).join('\r\n') + '\r\n';
 }

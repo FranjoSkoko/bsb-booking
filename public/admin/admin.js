@@ -101,10 +101,14 @@ async function render() {
 
 async function refreshBadge() {
   try {
-    const p = await api('/api/admin/pending');
+    const [p, inq] = await Promise.all([
+      api('/api/admin/pending'),
+      state.settings?.features?.events ? api('/api/admin/inquiries') : [],
+    ]);
+    const n = p.length + inq.filter((i) => i.status === 'novi').length;
     const b = $('#pending-badge');
-    b.textContent = p.length;
-    b.hidden = !p.length;
+    b.textContent = n;
+    b.hidden = !n;
   } catch { /* ignore */ }
 }
 
@@ -278,9 +282,10 @@ const PARTS = { bilo_kada: 'bilo kada', prijepodne: 'prijepodne', poslijepodne: 
 
 async function viewPending(v) {
   const f = state.settings?.features || {};
-  const [pending, waitlist] = await Promise.all([
+  const [pending, waitlist, inquiries] = await Promise.all([
     api('/api/admin/pending'),
     f.waitlist ? api('/api/admin/waitlist') : [],
+    f.events ? api('/api/admin/inquiries') : [],
   ]);
   v.innerHTML = `<h2>Zahtjevi <em>na čekanju</em></h2>
     <div class="panel">${pending.length ? pending.map((b) => bookingRow(b, { showDate: true, quick: true })).join('') : '<div class="empty-row">Nema novih zahtjeva.</div>'}</div>
@@ -292,11 +297,59 @@ async function viewPending(v) {
           <div class="what">${esc(w.phone)}${w.email ? ' · ' + esc(w.email) : ''}${w.notified_at ? ` · obaviještena ${esc(fmtStamp(w.notified_at))}` : ''}</div>
           ${w.note ? `<div class="what">„${esc(w.note)}”</div>` : ''}</div>
         <div class="actions">${phoneDigits(w.phone) ? `<a class="btn btn-small" href="https://wa.me/${phoneDigits(w.phone)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}<button class="btn btn-small btn-outline" data-wl-del="${w.id}">Ukloni</button></div>
-      </div>`).join('') : '<div class="empty-row">Nitko nije na listi čekanja.</div>'}</div>` : ''}`;
+      </div>`).join('') : '<div class="empty-row">Nitko nije na listi čekanja.</div>'}</div>` : ''}
+    ${f.events ? `<div class="day-head"><h3>Vjenčanja i svečanosti</h3>${inquiries.length ? `<span class="label">${inquiries.length}</span>` : ''}</div>
+      <div class="panel">${inquiries.length ? inquiries.map(inquiryRow).join('') : '<div class="empty-row">Nema otvorenih upita.</div>'}</div>` : ''}`;
   wireRows(v, pending);
+  wireInquiries(v, inquiries);
   $$('[data-wl-del]', v).forEach((b) => b.addEventListener('click', async () => {
     if (!confirm('Ukloniti klijenticu s liste čekanja? Neće dobiti email kad se termin oslobodi.')) return;
     await api(`/api/admin/waitlist/${b.dataset.wlDel}`, { method: 'DELETE' });
+    render();
+  }));
+}
+
+const dayYear = (d) => `${fmtDay(d)}${d.slice(0, 4) !== state.today.slice(0, 4) ? ` ${d.slice(0, 4)}.` : ''}`;
+
+function inquiryRow(i) {
+  const wa = phoneDigits(i.phone);
+  return `<div class="row stack" style="cursor:default">
+    <div><div class="who">${esc(i.name)} <span class="status-pill inq-${i.status}">${esc(i.status_label)}</span></div>
+      <div class="what">${esc(i.kind_label)} · ${esc(dayYear(i.event_date))}${i.ready_by ? ` · spremna do ${esc(i.ready_by)}` : ''} · ${i.people} ${i.people === 1 ? 'osoba' : i.people < 5 ? 'osobe' : 'osoba'}${i.location ? ` · ${esc(i.location)}` : ''}</div>
+      <div class="what">${esc(i.phone)}${i.email ? ' · ' + esc(i.email) : ''}</div>
+      ${i.note ? `<div class="what">„${esc(i.note)}”</div>` : ''}
+      ${i.day_bookings ? `<div class="what">Taj dan već imate ${termina(i.day_bookings)}.</div>` : ''}
+      ${i.deposit ? `<div class="what">Kapara ${km(i.deposit)}${i.deposit_paid_at ? ' · plaćena' : i.deposit_sent_at ? ` · upute poslane ${esc(fmtStamp(i.deposit_sent_at))}` : ''}</div>` : ''}
+    </div>
+    <div class="actions">
+      ${wa ? `<a class="btn btn-small btn-outline" href="https://wa.me/${wa}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
+      ${i.status !== 'potvrdeno' ? `<button class="btn btn-small btn-outline" data-inq-dep="${i.id}">${i.status === 'kapara_poslana' ? 'Ponovno pošalji upute' : 'Zatraži kaparu'}</button><button class="btn btn-small" data-inq-paid="${i.id}">Kapara plaćena</button>` : `<button class="btn btn-small btn-outline" data-inq-block="${i.id}">Blokiraj taj dan</button>`}
+      <button class="btn-link" data-inq-close="${i.id}">Zatvori</button>
+    </div>
+  </div>`;
+}
+
+function wireInquiries(root, list) {
+  const find = (id) => list.find((i) => i.id === Number(id));
+  $$('[data-inq-dep]', root).forEach((b) => b.addEventListener('click', async () => {
+    const i = find(b.dataset.inqDep);
+    const amount = prompt(`Iznos kapare za ${i.name} (KM):`, i.deposit || 50);
+    if (amount == null) return;
+    try { await api(`/api/admin/inquiries/${i.id}/deposit`, { method: 'POST', body: { deposit: Number(String(amount).replace(',', '.')) } }); toast('Upute za kaparu su poslane emailom.'); render(); } catch (err) { alert(err.message); }
+  }));
+  $$('[data-inq-paid]', root).forEach((b) => b.addEventListener('click', async () => {
+    const i = find(b.dataset.inqPaid);
+    if (!confirm(`Kapara je plaćena? ${i.name} će dobiti email da je datum rezerviran.`)) return;
+    try { await api(`/api/admin/inquiries/${i.id}/paid`, { method: 'POST', body: {} }); toast('Datum je potvrđen.'); render(); } catch (err) { toast(err.message); }
+  }));
+  $$('[data-inq-block]', root).forEach((b) => b.addEventListener('click', async () => {
+    const i = find(b.dataset.inqBlock);
+    if (!confirm(`Blokirati cijeli dan (${dayYear(i.event_date)}) za online rezervacije?`)) return;
+    try { await api('/api/admin/blocks', { method: 'POST', body: { date: i.event_date, reason: `${i.kind_label}: ${i.name}` } }); toast('Dan je blokiran.'); } catch (err) { toast(err.message); }
+  }));
+  $$('[data-inq-close]', root).forEach((b) => b.addEventListener('click', async () => {
+    if (!confirm('Zatvoriti upit? Nestaje s popisa (klijentica ne dobiva email).')) return;
+    await api(`/api/admin/inquiries/${b.dataset.inqClose}`, { method: 'PATCH', body: { status: 'zatvoreno' } });
     render();
   }));
 }
@@ -318,7 +371,7 @@ async function viewCalendar(v) {
   if (state.calMode === 'tjedan') {
     const from = state.weekStart;
     const to = addDays(from, 6);
-    const { bookings, blocks } = await api(`/api/admin/bookings?from=${from}&to=${to}`);
+    const { bookings, blocks, holidays = {} } = await api(`/api/admin/bookings?from=${from}&to=${to}`);
     const days = [...Array(7)].map((_, i) => addDays(from, i));
     const hours = state.settings.hours;
     v.innerHTML = toolbar(`${dObj(from).getUTCDate()}. – ${dObj(to).getUTCDate()}. ${MJ[dObj(to).getUTCMonth()]}`, -7, 7) + days.map((d) => {
@@ -326,7 +379,7 @@ async function viewCalendar(v) {
       const bls = blocks.filter((b) => b.date === d);
       const items = [...list.map((b) => ({ k: b.start_min, html: bookingRow(b) })), ...bls.map((b) => ({ k: b.start_min ?? -1, html: blockRow(b) }))].sort((a, b) => a.k - b.k);
       const h = hours[dow(d)];
-      return `<div class="day-head"><h3>${fmtDay(d)}${d === state.today ? ' · danas' : ''}</h3><span class="label">${h ? `${h.open}–${h.close}` : 'zatvoreno'}</span></div>
+      return `<div class="day-head"><h3>${fmtDay(d)}${d === state.today ? ' · danas' : ''}</h3><span class="label">${holidays[d] ? `praznik · ${esc(holidays[d])}` : h ? `${h.open}–${h.close}` : 'zatvoreno'}</span></div>
         <div class="panel">${items.length ? items.map((i) => i.html).join('') : '<div class="empty-row">Slobodno.</div>'}</div>`;
     }).join('');
     wireRows(v, bookings);
@@ -335,7 +388,7 @@ async function viewCalendar(v) {
     const from = `${state.month}-01`;
     const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
     const to = `${state.month}-${String(last).padStart(2, '0')}`;
-    const { bookings, blocks } = await api(`/api/admin/bookings?from=${from}&to=${to}&status=potvrdeno,na_cekanju`);
+    const { bookings, blocks, holidays = {} } = await api(`/api/admin/bookings?from=${from}&to=${to}&status=potvrdeno,na_cekanju`);
     const offset = (dow(from) + 6) % 7;
     let cells = DANI_KR.map((d) => `<div class="dow">${d}</div>`).join('') + '<div></div>'.repeat(offset);
     for (let i = 1; i <= last; i++) {
@@ -343,9 +396,9 @@ async function viewCalendar(v) {
       const list = bookings.filter((b) => b.date === d);
       const pend = list.filter((b) => b.status === 'na_cekanju').length;
       const blocked = blocks.some((b) => b.date === d && b.start_min == null);
-      const closed = !state.settings.hours[dow(d)] || blocked;
+      const closed = !state.settings.hours[dow(d)] || blocked || Boolean(holidays[d]);
       cells += `<button class="cell ${d === state.today ? 'today' : ''} ${closed ? 'closed' : ''}" data-day="${d}"><span class="n">${i}</span>
-        ${list.length ? `<span class="c">${list.length} ${list.length === 1 ? 'termin' : 'termina'}</span>` : ''}${pend ? `<span class="p">${pend} na čekanju</span>` : ''}${blocked ? '<span class="p">blokirano</span>' : ''}</button>`;
+        ${list.length ? `<span class="c">${list.length} ${list.length === 1 ? 'termin' : 'termina'}</span>` : ''}${pend ? `<span class="p">${pend} na čekanju</span>` : ''}${blocked ? '<span class="p">blokirano</span>' : ''}${holidays[d] ? `<span class="p">${esc(holidays[d])}</span>` : ''}</button>`;
     }
     v.innerHTML = toolbar(`${MJ_NOM[m - 1]} ${y}.`, -1, 1) + `<div class="month">${cells}</div>`;
     $$('[data-day]', v).forEach((c) => c.addEventListener('click', () => {
@@ -439,18 +492,151 @@ function newBookingModal() {
 }
 
 // ---------- Klijentice ----------
-async function viewClients(v, query = '') {
-  const list = await api(`/api/admin/clients?q=${encodeURIComponent(query)}`);
+async function viewClients(v) {
+  const f = state.settings?.features || {};
   v.innerHTML = `<h2>Klijen<em>tice</em></h2>
-    <div class="field compact" style="margin-bottom:12px"><input id="c-search" type="search" placeholder="Traži po imenu, mobitelu ili emailu" value="${esc(query)}"></div>
-    <div class="panel">${list.length ? list.map((c) => `
+    <div id="c-extras"></div>
+    ${f.vouchers || f.reviews ? '<h3>Sve klijentice</h3>' : ''}
+    <div class="field compact" style="margin-bottom:12px"><input id="c-search" type="search" placeholder="Traži po imenu, mobitelu ili emailu"></div>
+    <div class="panel" id="c-list"></div>`;
+  const box = $('#c-list', v);
+  const draw = async (query = '') => {
+    const list = await api(`/api/admin/clients?q=${encodeURIComponent(query)}`);
+    box.innerHTML = list.length ? list.map((c) => `
       <div class="row" data-cid="${c.id}" style="grid-template-columns:1fr auto">
         <div><div class="who">${esc(c.name)}</div><div class="what">${esc(c.phone)}${c.email ? ' · ' + esc(c.email) : ''}</div>${c.notes ? `<div class="what">${esc(c.notes)}</div>` : ''}</div>
         <div class="what" style="text-align:right">${c.visits} ${c.visits === 1 ? 'termin' : 'termina'}${c.no_shows ? `<br>${c.no_shows}× nije došla` : ''}${c.last_date ? `<br>zadnji ${fmtDay(c.last_date).split(', ')[1]}` : ''}</div>
-      </div>`).join('') : '<div class="empty-row">Još nema klijentica.</div>'}</div>`;
+      </div>`).join('') : `<div class="empty-row">${query ? 'Nitko ne odgovara pretrazi.' : 'Još nema klijentica.'}</div>`;
+    $$('[data-cid]', box).forEach((r) => r.addEventListener('click', () => clientModal(Number(r.dataset.cid))));
+  };
+  await Promise.all([draw(), renderClientExtras($('#c-extras', v), f)]);
   const s = $('#c-search', v);
-  s.addEventListener('input', () => { clearTimeout(s.t); s.t = setTimeout(() => viewClients(v, s.value).then(() => { const n = $('#c-search'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }), 300); });
-  $$('[data-cid]', v).forEach((r) => r.addEventListener('click', () => clientModal(Number(r.dataset.cid))));
+  s.addEventListener('input', () => { clearTimeout(s.t); s.t = setTimeout(() => draw(s.value), 300); });
+}
+
+// Poklon bonovi i recenzije (kad su uključeni) iznad popisa klijentica
+const VOUCHER_STATUS = { naruceno: 'Čeka plaćanje', aktivan: 'Aktivan', iskoristen: 'Iskorišten', otkazan: 'Otkazan' };
+const stars = (n) => `<span class="stars-view" aria-label="${n} od 5">${'★'.repeat(n)}<span>${'★'.repeat(5 - n)}</span></span>`;
+
+async function renderClientExtras(root, f) {
+  const [vouchers, reviews] = await Promise.all([f.vouchers ? api('/api/admin/vouchers') : [], f.reviews ? api('/api/admin/reviews') : []]);
+  const open = vouchers.filter((x) => ['naruceno', 'aktivan'].includes(x.status));
+  const closed = vouchers.filter((x) => !['naruceno', 'aktivan'].includes(x.status));
+  const voucherRow = (x) => `<div class="row stack" style="cursor:default">
+    <div><div class="who">${km(x.status === 'aktivan' ? x.balance : x.amount)}${x.status === 'aktivan' && x.balance < x.amount ? ` <small class="muted">od ${km(x.amount)}</small>` : ''} <span class="status-pill v-${x.status}">${esc(x.expired && x.status === 'aktivan' ? 'Istekao' : VOUCHER_STATUS[x.status])}</span></div>
+      <div class="what"><code>${esc(x.code)}</code>${x.recipient ? ` · za ${esc(x.recipient)}` : ''}${x.expires_on ? ` · vrijedi do ${esc(shortDate(x.expires_on))}` : ''}</div>
+      <div class="what">${x.buyer_name ? `Kupio/la: ${esc(x.buyer_name)}` : 'Napravljen u salonu'}${x.buyer_phone ? ' · ' + esc(x.buyer_phone) : ''}${x.buyer_email ? ' · ' + esc(x.buyer_email) : ''}</div>
+      ${x.redemptions?.length ? `<div class="what">Iskorišteno: ${x.redemptions.map((r) => `${esc(shortDate(r.date))} ${km(r.amount)}`).join(', ')}</div>` : ''}
+    </div>
+    <div class="actions">
+      ${x.status === 'naruceno' ? `<button class="btn btn-small" data-v-paid="${x.id}">Plaćeno, pošalji bon</button>` : ''}
+      ${x.status !== 'naruceno' ? `<a class="btn btn-small btn-outline" href="${esc(x.link)}" target="_blank" rel="noopener">Bon</a>` : ''}
+      ${['naruceno', 'aktivan'].includes(x.status) ? `<button class="btn-link" data-v-cancel="${x.id}">Otkaži</button>` : ''}
+    </div>
+  </div>`;
+  const fresh = reviews.filter((r) => r.status === 'nova');
+  const done = reviews.filter((r) => r.status !== 'nova');
+  const pub = done.filter((r) => r.status === 'objavljena');
+  const reviewRow = (r) => `<div class="row stack" style="cursor:default">
+    <div><div class="who">${stars(r.rating)} ${esc(r.name)}</div>
+      <div class="what">${esc(r.services)}${r.date ? ` · ${esc(fmtDay(r.date))}` : ''}${r.status === 'skrivena' ? ' · skrivena' : ''}</div>
+      ${r.text ? `<div class="what">„${esc(r.text)}”</div>` : ''}</div>
+    <div class="actions">
+      ${r.status !== 'objavljena' ? `<button class="btn btn-small" data-rv="${r.id}" data-st="objavljena">Objavi</button>` : ''}
+      ${r.status !== 'skrivena' ? `<button class="btn btn-small btn-outline" data-rv="${r.id}" data-st="skrivena">${r.status === 'objavljena' ? 'Makni sa stranice' : 'Ne objavljuj'}</button>` : ''}
+    </div>
+  </div>`;
+
+  root.innerHTML = `
+    ${f.vouchers ? `<div class="day-head"><h3>Poklon bonovi</h3><span class="spacer"></span><button class="btn btn-small" data-v-redeem>Iskoristi bon</button><button class="btn btn-small btn-outline" data-v-new>+ Novi bon</button></div>
+      <div class="panel">${open.length ? open.map(voucherRow).join('') : '<div class="empty-row">Nema aktivnih ni naručenih bonova.</div>'}
+      ${closed.length ? `<details class="more"><summary>Iskorišteni i otkazani (${closed.length})</summary>${closed.map(voucherRow).join('')}</details>` : ''}</div>` : ''}
+    ${f.reviews ? `<div class="day-head"><h3>Recenzije</h3>${pub.length ? `<span class="label">${pub.length} na stranici · prosjek ${(pub.reduce((a, r) => a + r.rating, 0) / pub.length).toLocaleString('hr-HR', { maximumFractionDigits: 1 })}</span>` : ''}</div>
+      <div class="panel">${fresh.length ? fresh.map(reviewRow).join('') : '<div class="empty-row">Nema novih recenzija za pregled.</div>'}
+      ${done.length ? `<details class="more"><summary>Pregledane (${done.length})</summary>${done.map(reviewRow).join('')}</details>` : ''}</div>` : ''}`;
+
+  const again = () => renderClientExtras(root, f);
+  $$('[data-v-paid]', root).forEach((b) => b.addEventListener('click', async () => {
+    const x = vouchers.find((y) => y.id === Number(b.dataset.vPaid));
+    if (!confirm(`Bon od ${km(x.amount)} je plaćen? ${x.buyer_email ? `Kupac će ga dobiti emailom (${x.buyer_email}).` : ''}`)) return;
+    try { const r = await api(`/api/admin/vouchers/${x.id}/paid`, { method: 'POST', body: {} }); toast(r.sent ? 'Bon je poslan kupcu.' : 'Bon je aktivan.'); again(); } catch (err) { toast(err.message); }
+  }));
+  $$('[data-v-cancel]', root).forEach((b) => b.addEventListener('click', async () => {
+    if (!confirm('Otkazati bon? Kod više neće vrijediti.')) return;
+    try { await api(`/api/admin/vouchers/${b.dataset.vCancel}`, { method: 'DELETE' }); again(); } catch (err) { toast(err.message); }
+  }));
+  $('[data-v-redeem]', root)?.addEventListener('click', () => redeemModal(again));
+  $('[data-v-new]', root)?.addEventListener('click', () => newVoucherModal(again));
+  $$('[data-rv]', root).forEach((b) => b.addEventListener('click', async () => {
+    await api(`/api/admin/reviews/${b.dataset.rv}/status`, { method: 'POST', body: { status: b.dataset.st } });
+    toast(b.dataset.st === 'objavljena' ? 'Recenzija je na stranici.' : 'Recenzija se ne prikazuje.');
+    again();
+  }));
+}
+
+function redeemModal(done) {
+  modal.open(`
+    <div class="modal-head"><h2>Iskoristi <em>bon</em></h2><button class="close-x" data-close aria-label="Zatvori">×</button></div>
+    <div class="field compact"><label>Kod s bona</label><input id="vr-code" placeholder="BSB-XXXX-XXXX" autocapitalize="characters" autocomplete="off"></div>
+    <div class="btn-row"><button class="btn btn-small btn-outline" id="vr-find">Provjeri</button></div>
+    <div id="vr-info"></div>`, (root) => {
+    let found = null;
+    const info = $('#vr-info', root);
+    const find = async () => {
+      try {
+        found = await api(`/api/admin/vouchers/find?code=${encodeURIComponent($('#vr-code', root).value)}`);
+      } catch (err) { info.innerHTML = `<p class="error">${esc(err.message)}</p>`; return; }
+      const usable = found.status === 'aktivan' && !found.expired;
+      info.innerHTML = `<dl class="kv">
+          <dt>Na bonu</dt><dd><strong>${km(found.balance)}</strong>${found.balance < found.amount ? ` od ${km(found.amount)}` : ''}</dd>
+          <dt>Status</dt><dd>${esc(found.expired && found.status === 'aktivan' ? `Istekao ${shortDate(found.expires_on)}` : VOUCHER_STATUS[found.status])}</dd>
+          ${found.recipient ? `<dt>Za</dt><dd>${esc(found.recipient)}</dd>` : ''}
+          ${found.expires_on ? `<dt>Vrijedi do</dt><dd>${esc(shortDate(found.expires_on))}</dd>` : ''}
+        </dl>
+        ${usable ? `<div class="field compact"><label>Iznos koji se plaća bonom (KM)</label><input id="vr-amount" type="number" min="0" step="0.5" value="${found.balance}"></div>
+        <div class="btn-row"><button class="btn btn-small" id="vr-go">Iskoristi</button></div>` : ''}`;
+      $('#vr-go', root)?.addEventListener('click', async () => {
+        try {
+          const r = await api('/api/admin/vouchers/redeem', { method: 'POST', body: { code: found.code, amount: Number($('#vr-amount', root).value) } });
+          toast(r.balance > 0 ? `Iskorišteno. Na bonu je ostalo ${km(r.balance)}.` : 'Bon je iskorišten do kraja.');
+          modal.close();
+          done();
+        } catch (err) { toast(err.message); }
+      });
+    };
+    $('#vr-find', root).addEventListener('click', find);
+    $('#vr-code', root).addEventListener('keydown', (e) => { if (e.key === 'Enter') find(); });
+    $('#vr-code', root).focus();
+  });
+}
+
+function newVoucherModal(done) {
+  const amounts = state.settings.extras?.voucherAmounts || [];
+  modal.open(`
+    <div class="modal-head"><h2>Novi <em>bon</em></h2><button class="close-x" data-close aria-label="Zatvori">×</button></div>
+    <p class="small">Za bon koji je kupljen i plaćen u salonu. Odmah je aktivan.</p>
+    <div class="grid2">
+      <div class="field compact"><label>Iznos (KM)</label><input id="nv-amount" type="number" min="5" step="5" value="${amounts[1] || amounts[0] || 50}"></div>
+      <div class="field compact"><label>Za koga (nije obavezno)</label><input id="nv-rec"></div>
+      <div class="field compact"><label>Kupac (nije obavezno)</label><input id="nv-name"></div>
+      <div class="field compact"><label>Email kupca (nije obavezno)</label><input id="nv-email" type="email"></div>
+    </div>
+    <div class="field compact" style="margin-top:8px"><label>Poruka na bonu (nije obavezno)</label><input id="nv-msg" maxlength="300"></div>
+    <label class="check small" style="margin-top:8px"><input type="checkbox" id="nv-notify" checked> Pošalji bon kupcu emailom</label>
+    <div class="btn-row"><button class="btn" id="nv-save">Napravi bon</button></div>`, (root) => {
+    $('#nv-save', root).addEventListener('click', async () => {
+      try {
+        const r = await api('/api/admin/vouchers', { method: 'POST', body: {
+          amount: Number($('#nv-amount', root).value), recipient: $('#nv-rec', root).value, buyer_name: $('#nv-name', root).value,
+          buyer_email: $('#nv-email', root).value, message: $('#nv-msg', root).value, notify: $('#nv-notify', root).checked,
+        } });
+        modal.close();
+        toast(`Bon ${r.code} je napravljen${r.sent ? ' i poslan emailom' : ''}.`);
+        window.open(r.link, '_blank');
+        done();
+      } catch (err) { toast(err.message); }
+    });
+  });
 }
 
 async function clientModal(id) {
@@ -664,7 +850,15 @@ const FEATURES = [
   { k: 'push', t: 'Obavijesti na mobitel', d: 'Obavijest na mobitel čim stigne novi zahtjev za termin, otkazivanje ili upis na listu čekanja.' },
   { k: 'backup', t: 'Tjedna sigurnosna kopija', d: 'Svakog ponedjeljka ujutro kopija svih termina i klijentica stiže vam na email.' },
   { k: 'waitlist', t: 'Lista čekanja', d: 'Kad nema slobodnog termina, klijentica se upiše na listu i dobije email čim se termin oslobodi.' },
+  { k: 'calendarFeed', t: 'Kalendar na mobitelu', d: 'Svi termini sami se pojavljuju u kalendaru na vašem iPhoneu ili u Google kalendaru.' },
+  { k: 'holidays', t: 'Praznici', d: 'Na praznike se ne može rezervirati online, pa ih ne morate blokirati ručno.' },
+  { k: 'rebook', t: 'Podsjetnik za novi termin', d: 'Nekoliko tjedana nakon obrva klijentica dobije email „Vrijeme je za nove obrve?” s linkom za rezervaciju.' },
+  { k: 'reviews', t: 'Recenzije na stranici', d: 'Nakon termina klijentice ocijene uslugu, a ocjene koje odobrite prikazuju se na stranici.' },
+  { k: 'vouchers', t: 'Poklon bonovi', d: 'Bon se naruči na stranici, kupac ga dobije emailom za ispis, a vi ga u salonu iskoristite po kodu.' },
+  { k: 'events', t: 'Vjenčanja i svečanosti', d: 'Obrazac za upit na stranici (vjenčanje, krizma, matura); kaparu tražite i potvrđujete jednim dodirom.' },
 ];
+const CAT_LABEL = { BROWS: 'Obrve', FACE: 'Lice', MAKEUP: 'Šminka' };
+const shortDate = (d) => `${Number(d.slice(8, 10))}. ${Number(d.slice(5, 7))}. ${d.slice(0, 4)}.`;
 
 const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
@@ -711,6 +905,47 @@ async function featurePanel(k, settings) {
       <div class="toolbar"><button class="btn btn-small btn-outline" data-backup-send>Pošalji kopiju sada</button><a class="btn btn-small btn-outline" href="/api/admin/backup.json" download>Preuzmi kopiju</a></div>`;
   }
   if (k === 'waitlist') return '<p class="small">Upisi s liste čekanja vide se pod <button class="btn-link" data-goto="zahtjevi">Zahtjevi</button>.</p>';
+  const x = settings.extras || {};
+  if (k === 'calendarFeed') {
+    const c = await api('/api/admin/calendar');
+    return `<p class="small">Novi, promijenjeni i otkazani termini sami se osvježavaju u kalendaru na mobitelu.</p>
+      <div class="toolbar"><a class="btn btn-small" href="${esc(c.webcal)}">Dodaj u kalendar na iPhoneu</a><button class="btn btn-small btn-outline" data-copy="${esc(c.url)}">Kopiraj link</button></div>
+      <p class="small muted"><strong>iPhone:</strong> otvorite ovu stranicu na iPhoneu, dodirnite gumb iznad i zatim „Pretplati se”.<br><strong>Google kalendar:</strong> na računalu otvorite calendar.google.com → „Drugi kalendari” (+) → „Iz URL-a” i zalijepite link. Google osvježava rjeđe, pa promjene ondje mogu kasniti nekoliko sati.</p>
+      <p class="small muted">Link je tajan, nemojte ga dijeliti. <button class="btn-link" data-cal-reset>Napravi novi link</button> (stari tada prestaje raditi).</p>`;
+  }
+  if (k === 'holidays') {
+    const list = await api('/api/admin/holidays');
+    const sel = x.holidays;
+    return `<p class="small">Odabrani praznici zatvoreni su za online rezervacije. Vi i dalje možete ručno upisati termin.</p>
+      <div class="hol-list">${list.map((h) => `<label class="check small"><input type="checkbox" data-hol="${h.k}" ${!sel || sel.includes(h.k) ? 'checked' : ''}><span>${esc(h.name)} <span class="muted">· ${h.dates.map(shortDate).join(' i ')}</span></span></label>`).join('')}</div>
+      <div class="toolbar"><button class="btn btn-small" data-hol-save>Spremi praznike</button></div>`;
+  }
+  if (k === 'rebook') {
+    const cats = [...new Set(state.services.map((sv) => sv.category))];
+    const days = x.rebookDays || {};
+    return `<p class="small">Email s linkom na istu uslugu stiže ujutro nakon zadanog broja dana, samo ako klijentica u međuvremenu nije sama rezervirala. Ista osoba ga dobiva najviše jednom u dva tjedna i može se odjaviti jednim klikom.</p>
+      <div class="grid2">${cats.map((c) => `<div class="field compact"><label>${esc(CAT_LABEL[c] || c)}: nakon koliko dana</label><input type="number" min="0" max="365" data-rb="${esc(c)}" value="${Number(days[c]) || 0}"></div>`).join('')}</div>
+      <p class="small muted">0 znači bez podsjetnika za tu vrstu usluge.</p>
+      <div class="toolbar"><button class="btn btn-small" data-rb-save>Spremi</button></div>`;
+  }
+  if (k === 'reviews') {
+    return `<p class="small">Dan nakon termina klijentica u emailu zahvale dobije gumb „Ocijenite termin”. Nove ocjene vidite pod <button class="btn-link" data-goto="klijentice">Klijentice</button>, a na stranici se prikazuju samo one koje objavite.</p>
+      ${settings.notify?.thanks ? '' : '<p class="small error">Uključite i „Zahvala i molba za recenziju dan nakon termina” pod Automatski emailovi, inače link ne stiže klijenticama.</p>'}`;
+  }
+  if (k === 'vouchers') {
+    return `<p class="small">Na stranici se pojavljuje sekcija „Poklon bon”. Narudžbe, plaćanje i iskorištavanje bonova su pod <button class="btn-link" data-goto="klijentice">Klijentice</button>.</p>
+      <div class="grid2">
+        <div class="field compact"><label>Iznosi (KM, odvojeni zarezom)</label><input id="x-amounts" value="${esc((x.voucherAmounts || []).join(', '))}"></div>
+        <div class="field compact"><label>Bon vrijedi (mjeseci)</label><input id="x-months" type="number" min="1" max="36" value="${x.voucherMonths || 12}"></div>
+      </div>
+      <div class="field compact" style="margin-top:8px"><label>Kako se bon plaća (piše kupcu nakon narudžbe)</label><textarea id="x-payment" rows="3">${esc(x.voucherPayment || '')}</textarea></div>
+      <div class="toolbar"><button class="btn btn-small" data-x-save="vouchers">Spremi</button></div>`;
+  }
+  if (k === 'events') {
+    return `<p class="small">Na stranici se pojavljuje sekcija „Vjenčanja i svečanosti” s obrascem za upit. Upiti stižu pod <button class="btn-link" data-goto="zahtjevi">Zahtjevi</button>, na email i na mobitel.</p>
+      <div class="field compact"><label>Upute za plaćanje kapare (šalju se klijentici jednim dodirom)</label><textarea id="x-deposit" rows="4" placeholder="npr. Uplata na račun: BA39 …&#10;Primatelj: Barbara Skoko&#10;Svrha: kapara, ime i datum">${esc(x.depositInfo || '')}</textarea></div>
+      <div class="toolbar"><button class="btn btn-small" data-x-save="events">Spremi</button></div>`;
+  }
   return '';
 }
 
@@ -750,6 +985,31 @@ async function renderFeatures(root, settings) {
     try { await api('/api/admin/backup/send', { method: 'POST' }); toast('Kopija je poslana na email.'); state.settings = await api('/api/admin/settings'); renderFeatures(root, state.settings); } catch (err) { toast(err.message); } finally { e.target.disabled = false; }
   });
   $$('[data-goto]', root).forEach((b) => b.addEventListener('click', () => go(b.dataset.goto)));
+
+  const saveExtras = async (extras) => {
+    try { state.settings = await api('/api/admin/settings', { method: 'PUT', body: { extras } }); toast('Spremljeno.'); renderFeatures(root, state.settings); } catch (err) { toast(err.message); }
+  };
+  $$('[data-copy]', root).forEach((b) => b.addEventListener('click', () => navigator.clipboard?.writeText(b.dataset.copy).then(() => toast('Link kopiran.'))));
+  $('[data-cal-reset]', root)?.addEventListener('click', async () => {
+    if (!confirm('Napraviti novi link? Kalendar koji koristi stari link prestat će se osvježavati, pa ćete ga trebati ponovno dodati.')) return;
+    await api('/api/admin/calendar/reset', { method: 'POST' });
+    toast('Napravljen je novi link.');
+    renderFeatures(root, state.settings);
+  });
+  $('[data-hol-save]', root)?.addEventListener('click', () => {
+    const boxes = $$('[data-hol]', root);
+    const picked = boxes.filter((c) => c.checked).map((c) => c.dataset.hol);
+    saveExtras({ holidays: picked.length === boxes.length ? null : picked });
+  });
+  $('[data-rb-save]', root)?.addEventListener('click', () => {
+    const rebookDays = { ...(state.settings.extras?.rebookDays || {}) };
+    $$('[data-rb]', root).forEach((i) => { rebookDays[i.dataset.rb] = Number(i.value) || 0; });
+    saveExtras({ rebookDays });
+  });
+  $$('[data-x-save]', root).forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.xSave === 'events') return saveExtras({ depositInfo: $('#x-deposit', root).value });
+    return saveExtras({ voucherAmounts: $('#x-amounts', root).value, voucherMonths: $('#x-months', root).value, voucherPayment: $('#x-payment', root).value });
+  }));
 }
 
 // ---------- Postavke ----------
