@@ -14,7 +14,9 @@ export const DEFAULT_SETTINGS = {
   business: {
     name: 'Barbara Skoko Beauty',
     owner: 'Barbara Skoko',
-    address: '',
+    address: 'Ivana Zajca II-2',
+    // Što se traži na Google karti (naziv mjesta ili koordinate "43.38, 17.59")
+    mapQuery: 'Elbas Apartman, Ivana Zajca, Široki Brijeg',
     city: 'Široki Brijeg',
     phone: '+387 63 674 074',
     whatsapp: 'https://wa.me/38763674074',

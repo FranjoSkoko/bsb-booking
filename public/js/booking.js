@@ -285,9 +285,11 @@ function renderContact() {
     const h = state.config.hours[d];
     return `<tr><td>${DANI[d]}</td><td>${h ? `${h.open} – ${h.close}` : 'zatvoreno'}</td></tr>`;
   }).join('');
-  const place = [b.address, b.city, 'Bosna i Hercegovina'].filter(Boolean).join(', ');
-  $('#map').src = `https://maps.google.com/maps?q=${encodeURIComponent(place)}&z=${b.address ? 16 : 13}&output=embed`;
-  $('#address-line').innerHTML = `<a href="https://maps.google.com/?q=${encodeURIComponent(place)}" target="_blank" rel="noopener">Otvori u kartama</a>`;
+  const place = b.mapQuery || [b.address, b.city, 'Bosna i Hercegovina'].filter(Boolean).join(', ');
+  $('#map').src = `https://maps.google.com/maps?q=${encodeURIComponent(place)}&z=17&hl=hr&output=embed`;
+  $('#address-line').innerHTML = `${esc([b.address, b.city].filter(Boolean).join(', '))}<br>
+    <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}" target="_blank" rel="noopener">Otvori u Google kartama</a> ·
+    <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(place)}" target="_blank" rel="noopener">Upute do salona</a>`;
 }
 
 function renderGallery() {

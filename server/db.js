@@ -132,6 +132,8 @@ export async function getSettings() {
   const { rows } = await q('SELECT key, value FROM settings');
   const out = structuredClone(DEFAULT_SETTINGS);
   for (const r of rows) out[r.key] = { ...(out[r.key] || {}), ...r.value };
+  // Prazna adresa ili lokacija za kartu → zadana vrijednost salona
+  for (const k of ['address', 'mapQuery']) if (!out.business[k]) out.business[k] = DEFAULT_SETTINGS.business[k];
   return out;
 }
 
