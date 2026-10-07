@@ -12,6 +12,9 @@ import { baseUrl, emailConfigured, buildEmail, sendRaw, adminEmail, icsAttachmen
 import { runScheduledJobs, startScheduler } from './scheduler.js';
 import { nowLocal, toHHMM, toMin, formatDateHr, parseYmd, addDays } from './time.js';
 import { telHref, waHref } from './phone.js';
+import { registerExtras, cleanExtras } from './extras.js';
+import { DEFAULT_SETTINGS } from './defaults.js';
+import { emit } from './hooks.js';
 import { computeStats, chartMonths, monthlySeries, bookingsCsv } from './stats.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -50,8 +53,9 @@ function rateLimit({ windowMs, max }) {
 // ---------- stranice ----------
 
 app.get(['/rezerviraj', '/r', '/booking'], (req, res) => {
-  const usluga = req.query.usluga ? `?usluga=${encodeURIComponent(req.query.usluga)}` : '';
-  res.redirect(302, `/${usluga}#rezervacija`);
+  const qs = new URLSearchParams();
+  for (const k of ['usluga', 'datum']) if (req.query[k]) qs.set(k, String(req.query[k]));
+  res.redirect(302, `/${qs.size ? `?${qs}` : ''}#rezervacija`);
 });
 app.get('/rezervacija/:token', (req, res) => res.sendFile(path.join(PUBLIC, 'rezervacija.html')));
 app.get('/privatnost', (req, res) => res.sendFile(path.join(PUBLIC, 'privatnost.html')));
@@ -87,6 +91,7 @@ app.get('/api/config', wrap(async (req, res) => {
     },
     services,
     gallery,
+    features: { waitlist: settings.features.waitlist },
     today: nowLocal().date,
   });
 }));
@@ -316,7 +321,8 @@ admin.post('/blocks', wrap(async (req, res) => {
 }));
 
 admin.delete('/blocks/:id', wrap(async (req, res) => {
-  await q('DELETE FROM blocks WHERE id = $1', [Number(req.params.id)]);
+  const r = await q('DELETE FROM blocks WHERE id = $1 RETURNING date', [Number(req.params.id)]);
+  if (r.rowCount) emit('slotFreed', r.rows[0].date);
   res.json({ ok: true });
 }));
 
@@ -393,6 +399,12 @@ admin.put('/settings', wrap(async (req, res) => {
   if (notify) {
     await saveSetting('notify', { reminders: Boolean(notify.reminders), thanks: Boolean(notify.thanks), dailySummary: Boolean(notify.dailySummary) });
   }
+  if (req.body.features) {
+    const next = { ...cur.features };
+    for (const k of Object.keys(DEFAULT_SETTINGS.features)) if (k in req.body.features) next[k] = Boolean(req.body.features[k]);
+    await saveSetting('features', next);
+  }
+  if (req.body.extras) await saveSetting('extras', cleanExtras(req.body.extras, cur.extras));
   res.json(await getSettings());
 }));
 
@@ -540,6 +552,7 @@ admin.post('/test-email', wrap(async (req, res) => {
 
 admin.post('/run-jobs', wrap(async (req, res) => res.json(await runScheduledJobs())));
 
+registerExtras(app, admin, { wrap, rateLimit, actionPage });
 app.use('/api/admin', admin);
 
 // ---------- greške ----------

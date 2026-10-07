@@ -40,5 +40,25 @@ export const DEFAULT_SETTINGS = {
     thanks: true,
     dailySummary: true,
   },
+  // Dodatne mogućnosti – Barbara ih uključuje u Postavkama
+  features: {
+    push: true, // obavijesti na mobitel
+    backup: true, // tjedna sigurnosna kopija na email
+    waitlist: true, // lista čekanja
+    calendarFeed: false, // termini u kalendaru mobitela
+    holidays: false, // praznici se sami blokiraju
+    rebook: false, // podsjetnik „vrijeme je za obrve”
+    events: false, // upiti za vjenčanja i svečanosti
+    vouchers: false, // poklon bonovi
+    reviews: false, // recenzije na stranici
+  },
+  extras: {
+    holidays: null, // null = svi s popisa (server/holidays.js)
+    rebookDays: { BROWS: 35, FACE: 35, MAKEUP: 0 }, // 0 = bez podsjetnika
+    depositInfo: '',
+    voucherAmounts: [30, 50, 100],
+    voucherPayment: 'Bon plaćate u salonu, a Barbara vam ga zatim šalje emailom.',
+    voucherMonths: 12,
+  },
   meta: {},
 };

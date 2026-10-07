@@ -16,6 +16,7 @@
   "dependencies": {
     "express": "^4.22.3",
     "nodemailer": "^10.0.15",
-    "pg": "^8.23.1"
+    "pg": "^8.23.1",
+    "web-push": "^3.6.7"
   }
 }

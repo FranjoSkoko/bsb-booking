@@ -274,11 +274,31 @@ async function viewToday(v) {
 }
 
 // ---------- Zahtjevi ----------
+const PARTS = { bilo_kada: 'bilo kada', prijepodne: 'prijepodne', poslijepodne: 'poslijepodne' };
+
 async function viewPending(v) {
-  const pending = await api('/api/admin/pending');
+  const f = state.settings?.features || {};
+  const [pending, waitlist] = await Promise.all([
+    api('/api/admin/pending'),
+    f.waitlist ? api('/api/admin/waitlist') : [],
+  ]);
   v.innerHTML = `<h2>Zahtjevi <em>na čekanju</em></h2>
-    <div class="panel">${pending.length ? pending.map((b) => bookingRow(b, { showDate: true, quick: true })).join('') : '<div class="empty-row">Nema novih zahtjeva.</div>'}</div>`;
+    <div class="panel">${pending.length ? pending.map((b) => bookingRow(b, { showDate: true, quick: true })).join('') : '<div class="empty-row">Nema novih zahtjeva.</div>'}</div>
+    ${f.waitlist ? `<div class="day-head"><h3>Lista čekanja</h3>${waitlist.length ? `<span class="label">${waitlist.length}</span>` : ''}</div>
+      <p class="small muted" style="margin-top:-4px">Kad se termin tog dana oslobodi, klijentice s liste automatski dobiju email.</p>
+      <div class="panel">${waitlist.length ? waitlist.map((w) => `<div class="row stack" style="cursor:default">
+        <div><div class="who">${esc(w.name)}</div>
+          <div class="what">${esc(fmtDay(w.date))} · ${esc(PARTS[w.part] || '')} · ${esc(w.services.map((s) => s.name).join(' + '))}</div>
+          <div class="what">${esc(w.phone)}${w.email ? ' · ' + esc(w.email) : ''}${w.notified_at ? ` · obaviještena ${esc(fmtStamp(w.notified_at))}` : ''}</div>
+          ${w.note ? `<div class="what">„${esc(w.note)}”</div>` : ''}</div>
+        <div class="actions">${phoneDigits(w.phone) ? `<a class="btn btn-small" href="https://wa.me/${phoneDigits(w.phone)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}<button class="btn btn-small btn-outline" data-wl-del="${w.id}">Ukloni</button></div>
+      </div>`).join('') : '<div class="empty-row">Nitko nije na listi čekanja.</div>'}</div>` : ''}`;
   wireRows(v, pending);
+  $$('[data-wl-del]', v).forEach((b) => b.addEventListener('click', async () => {
+    if (!confirm('Ukloniti klijenticu s liste čekanja? Neće dobiti email kad se termin oslobodi.')) return;
+    await api(`/api/admin/waitlist/${b.dataset.wlDel}`, { method: 'DELETE' });
+    render();
+  }));
 }
 
 // ---------- Kalendar ----------
@@ -638,6 +658,100 @@ async function viewStats(v) {
   show(def);
 }
 
+// ---------- Dodatne mogućnosti ----------
+// Svaka se uključuje prekidačem; opis i postavke vide se ispod naziva.
+const FEATURES = [
+  { k: 'push', t: 'Obavijesti na mobitel', d: 'Obavijest na mobitel čim stigne novi zahtjev za termin, otkazivanje ili upis na listu čekanja.' },
+  { k: 'backup', t: 'Tjedna sigurnosna kopija', d: 'Svakog ponedjeljka ujutro kopija svih termina i klijentica stiže vam na email.' },
+  { k: 'waitlist', t: 'Lista čekanja', d: 'Kad nema slobodnog termina, klijentica se upiše na listu i dobije email čim se termin oslobodi.' },
+];
+
+const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const deviceLabel = () => {
+  const ua = navigator.userAgent;
+  const os = /iphone/i.test(ua) ? 'iPhone' : /ipad/i.test(ua) || isIos() ? 'iPad' : /android/i.test(ua) ? 'Android' : /mac/i.test(ua) ? 'Mac' : /windows/i.test(ua) ? 'Windows' : 'Uređaj';
+  const br = /edg\//i.test(ua) ? 'Edge' : /crios|chrome/i.test(ua) ? 'Chrome' : /fxios|firefox/i.test(ua) ? 'Firefox' : /safari/i.test(ua) ? 'Safari' : '';
+  return [os, br].filter(Boolean).join(' · ');
+};
+const b64ToBytes = (s) => {
+  const raw = atob((s + '='.repeat((4 - (s.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+};
+
+async function enablePush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    throw new Error(isIos() && !isStandalone()
+      ? 'Na iPhoneu obavijesti rade kad administraciju dodate na početni zaslon: u Safariju dodirnite Dijeli → Dodaj na početni zaslon, otvorite je s početnog zaslona i ovdje ponovno uključite obavijesti.'
+      : 'Ovaj preglednik ne podržava obavijesti. Pokušajte u Chromeu ili Safariju.');
+  }
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') throw new Error('Obavijesti nisu dopuštene. Dopustite ih u postavkama preglednika za ovu stranicu.');
+  const reg = await navigator.serviceWorker.register('/sw.js');
+  await navigator.serviceWorker.ready;
+  const { key } = await api('/api/admin/push/key');
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(key) });
+  await api('/api/admin/push/subscribe', { method: 'POST', body: { subscription: sub.toJSON(), label: deviceLabel() } });
+}
+
+const fmtStamp = (t) => (t ? new Date(t).toLocaleString('hr-HR', { timeZone: 'Europe/Sarajevo', dateStyle: 'short', timeStyle: 'short' }) : '');
+
+async function featurePanel(k, settings) {
+  if (k === 'push') {
+    const devices = await api('/api/admin/push/devices').catch(() => []);
+    return `<p class="small">${devices.length ? 'Obavijesti stižu na:' : 'Još nijedan uređaj ne prima obavijesti. Uključite ih na mobitelu na kojem želite primati obavijesti.'}</p>
+      ${devices.map((d) => `<div class="dev"><span>${esc(d.label || 'Uređaj')}<small>dodano ${esc(fmtStamp(d.created_at))}</small></span><button class="btn-link" data-dev-del="${d.id}">Ukloni</button></div>`).join('')}
+      ${isIos() && !isStandalone() ? '<p class="small muted">Na iPhoneu: u Safariju dodirnite Dijeli → Dodaj na početni zaslon, pa administraciju otvarajte s početnog zaslona. Tek tada se obavijesti mogu uključiti.</p>' : ''}
+      <div class="toolbar"><button class="btn btn-small" data-push-on>Uključi na ovom uređaju</button>${devices.length ? '<button class="btn btn-small btn-outline" data-push-test>Pošalji probnu obavijest</button>' : ''}</div>`;
+  }
+  if (k === 'backup') {
+    const last = settings.meta?.lastBackup;
+    return `<p class="small">${last ? `Zadnja kopija poslana: <strong>${esc(last.split('-').reverse().join('.'))}.</strong>` : 'Prva kopija stiže uskoro.'} Šalje se na ${esc(state.status?.adminEmail || settings.business.email)}.</p>
+      <div class="toolbar"><button class="btn btn-small btn-outline" data-backup-send>Pošalji kopiju sada</button><a class="btn btn-small btn-outline" href="/api/admin/backup.json" download>Preuzmi kopiju</a></div>`;
+  }
+  if (k === 'waitlist') return '<p class="small">Upisi s liste čekanja vide se pod <button class="btn-link" data-goto="zahtjevi">Zahtjevi</button>.</p>';
+  return '';
+}
+
+async function renderFeatures(root, settings) {
+  const f = settings.features || {};
+  const panels = await Promise.all(FEATURES.map((x) => (f[x.k] ? featurePanel(x.k, settings) : '')));
+  root.innerHTML = FEATURES.map((x, i) => `
+    <div class="feat${f[x.k] ? ' on' : ''}">
+      <label class="feat-head">
+        <span><strong>${esc(x.t)}</strong><small>${esc(x.d)}</small></span>
+        <span class="switch"><input type="checkbox" data-feat="${x.k}" ${f[x.k] ? 'checked' : ''}><i></i></span>
+      </label>
+      ${f[x.k] ? `<div class="feat-body">${panels[i]}</div>` : ''}
+    </div>`).join('');
+
+  $$('[data-feat]', root).forEach((c) => c.addEventListener('change', async () => {
+    try {
+      state.settings = await api('/api/admin/settings', { method: 'PUT', body: { features: { [c.dataset.feat]: c.checked } } });
+      toast(c.checked ? 'Uključeno.' : 'Isključeno.');
+      renderFeatures(root, state.settings);
+    } catch (err) { toast(err.message); c.checked = !c.checked; }
+  }));
+  $('[data-push-on]', root)?.addEventListener('click', async (e) => {
+    e.target.disabled = true;
+    try { await enablePush(); toast('Obavijesti su uključene na ovom uređaju.'); renderFeatures(root, state.settings); } catch (err) { alert(err.message); } finally { e.target.disabled = false; }
+  });
+  $('[data-push-test]', root)?.addEventListener('click', async () => {
+    try { const r = await api('/api/admin/push/test', { method: 'POST' }); toast(`Poslano na ${r.sent} ${r.sent === 1 ? 'uređaj' : 'uređaja'}.`); } catch (err) { toast(err.message); }
+  });
+  $$('[data-dev-del]', root).forEach((b) => b.addEventListener('click', async () => {
+    if (!confirm('Ukloniti ovaj uređaj? Na njega više neće stizati obavijesti.')) return;
+    await api(`/api/admin/push/devices/${b.dataset.devDel}`, { method: 'DELETE' });
+    renderFeatures(root, state.settings);
+  }));
+  $('[data-backup-send]', root)?.addEventListener('click', async (e) => {
+    e.target.disabled = true;
+    try { await api('/api/admin/backup/send', { method: 'POST' }); toast('Kopija je poslana na email.'); state.settings = await api('/api/admin/settings'); renderFeatures(root, state.settings); } catch (err) { toast(err.message); } finally { e.target.disabled = false; }
+  });
+  $$('[data-goto]', root).forEach((b) => b.addEventListener('click', () => go(b.dataset.goto)));
+}
+
 // ---------- Postavke ----------
 async function viewSettings(v) {
   const [services, settings, status, emails, cfg] = await Promise.all([
@@ -710,6 +824,9 @@ async function viewSettings(v) {
     </div>
     <div class="btn-row"><button class="btn" id="settings-save">Spremi postavke</button></div>
 
+    <h3>Dodatne mogućnosti</h3>
+    <div class="panel feats" id="features"></div>
+
     <h3>Fotografija za „O meni”</h3>
     <div class="panel about-edit">
       <div class="about-current"><img src="${about ? `/api/gallery/${about.id}` : ABOUT_DEFAULT}" alt="Fotografija u sekciji O meni"></div>
@@ -737,6 +854,8 @@ async function viewSettings(v) {
       <div class="toolbar"><input id="test-to" type="email" value="${esc(status.adminEmail)}" style="min-height:40px;padding:6px 12px;border:1px solid var(--line);flex:1;min-width:200px"><button class="btn btn-small btn-outline" id="test-email">Pošalji probne emailove</button></div>
       <table class="log">${emails.slice(0, 15).map((e) => `<tr><td>${new Date(e.created_at).toLocaleString('hr-HR', { timeZone: 'Europe/Sarajevo', dateStyle: 'short', timeStyle: 'short' })}</td><td>${esc(e.subject)}<br><span class="muted">${esc(e.to_addr)}</span></td><td>${e.status === 'poslano' ? 'poslano' : `<span class="error">${esc(e.status)}</span>`}</td></tr>`).join('') || '<tr><td class="muted">Još nema poslanih emailova.</td></tr>'}</table>
     </div>`;
+
+  renderFeatures($('#features', v), settings);
 
   // Usluge
   const editor = $('#svc-editor', v);
@@ -876,4 +995,5 @@ async function start() {
 }
 
 document.addEventListener('visibilitychange', () => { if (!document.hidden && !$('#app').hidden) render(); });
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 start();

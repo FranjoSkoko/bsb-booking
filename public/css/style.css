@@ -277,3 +277,10 @@ footer.site-footer a { color: var(--rose-light); }
 .action-card .message { font-weight: 400; }
 /* Linkovi na #rezervacija, #kontakt … ne završe ispod zaglavlja */
 section[id] { scroll-margin-top: 72px; }
+
+/* Lista čekanja */
+.wl-cta { margin: 20px 0 0; font-size: 14px; color: var(--muted); }
+.wl-form { margin-top: 24px; padding: 20px; background: var(--cream); }
+.wl-form h3 { margin: 0; font-size: 22px; }
+.wl-done { margin-top: 20px; padding: 16px 20px; background: var(--cream); font-size: 15px; }
+.wl-done p { margin: 0 0 12px; }

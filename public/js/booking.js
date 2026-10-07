@@ -119,6 +119,7 @@ $('#to-step-2').addEventListener('click', async () => {
   goStep(2);
   await loadDays();
 });
+$('[data-panel="2"] [data-back]').addEventListener('click', () => { $('#wl-box').innerHTML = ''; });
 $('#to-step-3').addEventListener('click', () => {
   const t = totals();
   $('#recap').innerHTML = `<div class="what">${esc(t.names)}</div><div class="when">${fmtDate(state.date)} u ${state.time} · ${t.duration} min · ${km(t.price)}</div>`;
@@ -131,13 +132,20 @@ $$('[data-back]').forEach((b) => b.addEventListener('click', () => goStep(Number
 async function loadDays() {
   $('#cal').innerHTML = '<p class="empty">Tražim slobodne termine…</p>';
   $('#slots-wrap').innerHTML = '';
+  renderWaitlistCta();
   try {
     state.days = await api(`/api/days?services=${[...state.selected].join(',')}`);
+    // Traženi dan (npr. iz linka u emailu) je pun – ponudi listu čekanja za njega
+    const wanted = state.date && state.days.days[state.date] === 0 ? state.date : null;
     const first = state.date && state.days.days[state.date] ? state.date : Object.keys(state.days.days).find((d) => state.days.days[d] > 0);
     state.month = (first || state.days.from).slice(0, 7);
     renderCalendar();
-    if (first) selectDate(first);
+    if (first) await selectDate(first);
     else $('#slots-wrap').innerHTML = `<p class="empty">Trenutno nema slobodnih termina. Javite se na ${esc(state.config.business.phone)}.</p>`;
+    if (wanted && state.config.features?.waitlist) {
+      $('#wl-box').innerHTML = `<p class="wl-cta"><strong>${esc(fmtDate(wanted))}</strong> više nema slobodnih termina. <button type="button" class="btn-link" id="wl-open">Upišite se na listu čekanja za taj dan</button></p>`;
+      $('#wl-open').addEventListener('click', () => openWaitlist(wanted));
+    }
   } catch (err) {
     $('#cal').innerHTML = `<p class="error">${esc(err.message)}</p>`;
   }
@@ -196,6 +204,68 @@ async function selectDate(date) {
   } catch (err) {
     $('#slots-wrap').innerHTML = `<p class="error">${esc(err.message)}</p>`;
   }
+}
+
+// ---------- lista čekanja ----------
+function renderWaitlistCta() {
+  if (!state.config.features?.waitlist) return;
+  $('#wl-box').innerHTML = '<p class="wl-cta">Nema termina koji vam odgovara? <button type="button" class="btn-link" id="wl-open">Upišite se na listu čekanja</button></p>';
+  $('#wl-open').addEventListener('click', () => openWaitlist());
+}
+
+function openWaitlist(wantedDate) {
+  const today = state.config.today;
+  const max = new Date(dateObj(today).getTime() + state.config.rules.maxDaysAhead * 86400000).toISOString().slice(0, 10);
+  const c = storage('bsb_client') || {};
+  const t = totals();
+  $('#wl-box').innerHTML = `
+    <form id="wl-form" class="form-grid wl-form" novalidate>
+      <h3>Lista čekanja</h3>
+      <p class="notice">Odaberite dan koji želite za ${esc(t.names)}. Čim se tog dana oslobodi termin, javit ćemo vam se emailom. Termin dobiva ona koja ga prva rezervira.</p>
+      <div class="field"><label for="wl-date">Datum</label><input id="wl-date" type="date" min="${today}" max="${max}" value="${esc((typeof wantedDate === 'string' && wantedDate) || state.date || '')}" required></div>
+      <div class="field"><label for="wl-part">Doba dana</label><select id="wl-part"><option value="bilo_kada">Bilo kada</option><option value="prijepodne">Prijepodne (do 12 h)</option><option value="poslijepodne">Poslijepodne (od 12 h)</option></select></div>
+      <div class="field"><label for="wl-name">Ime i prezime</label><input id="wl-name" autocomplete="name" value="${esc(c.name || $('#f-name').value)}"></div>
+      <div class="field"><label for="wl-phone">Broj mobitela</label><input id="wl-phone" type="tel" autocomplete="tel" inputmode="tel" value="${esc(c.phone || $('#f-phone').value)}"></div>
+      <div class="field"><label for="wl-email">Email</label><input id="wl-email" type="email" autocomplete="email" inputmode="email" value="${esc(c.email || $('#f-email').value)}"></div>
+      <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <label class="check"><input type="checkbox" id="wl-consent"><span>Slažem se s obradom osobnih podataka radi obavijesti o slobodnom terminu. <a href="/privatnost" target="_blank">Više o privatnosti</a></span></label>
+      <p class="error" id="wl-error" role="alert" hidden></p>
+      <div class="step-actions">
+        <button type="button" class="btn-link" id="wl-cancel">Odustani</button>
+        <button class="btn" type="submit" id="wl-submit">Upišite me</button>
+      </div>
+    </form>`;
+  $('#wl-cancel').addEventListener('click', renderWaitlistCta);
+  $('#wl-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  $('#wl-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('#wl-error');
+    err.hidden = true;
+    const data = {
+      services: [...state.selected], date: $('#wl-date').value, part: $('#wl-part').value,
+      name: $('#wl-name').value, phone: $('#wl-phone').value, email: $('#wl-email').value,
+      consent: $('#wl-consent').checked, website: e.target.elements.website.value,
+    };
+    const problem = !data.date ? 'Odaberite datum.' : !data.name.trim() ? 'Upišite ime i prezime.'
+      : (data.phone.match(/\d/g) || []).length < 6 ? 'Upišite ispravan broj mobitela.'
+      : !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(data.email.trim()) ? 'Upišite ispravnu email adresu.'
+      : !data.consent ? 'Za upis je potrebna privola za obradu podataka.' : null;
+    if (problem) { err.textContent = problem; err.hidden = false; return; }
+    const btn = $('#wl-submit');
+    btn.disabled = true;
+    try {
+      const res = await api('/api/waitlist', { method: 'POST', body: JSON.stringify(data) });
+      if (!storage('bsb_client')) storage('bsb_client', { name: data.name, phone: data.phone, email: data.email });
+      $('#wl-box').innerHTML = res.free.length
+        ? `<div class="wl-done"><p><strong>Dobre vijesti: ${esc(fmtDate(data.date).toLowerCase())} ima slobodnih termina</strong> (${esc(res.free.slice(0, 6).join(', '))}). Poslali smo vam ih i emailom.</p><button type="button" class="btn btn-small" id="wl-pick">Odaberite termin</button></div>`
+        : `<div class="wl-done"><p><strong>Upisani ste na listu čekanja za ${esc(fmtDate(data.date).toLowerCase())}.</strong> Čim se termin oslobodi, javit ćemo vam se na ${esc(data.email)}.</p></div>`;
+      $('#wl-pick')?.addEventListener('click', () => { state.date = data.date; loadDays(); });
+    } catch (ex) {
+      err.textContent = ex.message;
+      err.hidden = false;
+      btn.disabled = false;
+    }
+  });
 }
 
 // ---------- korak 3: podaci i slanje ----------
@@ -330,12 +400,23 @@ function renderGallery() {
   }
   if (state.config.rules.autoConfirm) $('#confirm-note').textContent = 'Termin se potvrđuje odmah, a potvrdu dobivate emailom.';
   $('#confirm-note').insertAdjacentHTML('afterend', `<p class="notice">${cancelRuleText()}</p>`);
-  const pre = new URLSearchParams(location.search).get('usluga');
-  if (pre && state.config.services.some((s) => s.id === pre)) state.selected.add(pre);
+  // Linkovi iz emailova: ?usluga=henna,classic&datum=2026-10-12
+  const params = new URLSearchParams(location.search);
+  for (const id of (params.get('usluga') || '').split(',')) {
+    if (!state.config.services.some((s) => s.id === id)) continue;
+    if (!state.config.rules.allowMultiple) state.selected.clear();
+    state.selected.add(id);
+  }
+  const datum = params.get('datum');
   renderPriceList();
   renderServices();
   renderContact();
   renderGallery();
+  if (state.selected.size && /^\d{4}-\d{2}-\d{2}$/.test(datum || '')) {
+    state.date = datum;
+    goStep(2);
+    loadDays();
+  }
   // Sadržaj iznad (cjenik) stigne tek sada, pa preglednik promaši #rezervacija iz linka – ponovi skok
   if (location.hash.length > 1) {
     try { document.querySelector(location.hash)?.scrollIntoView(); } catch { /* neispravan hash */ }
