@@ -289,7 +289,6 @@ function renderContact() {
   const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(place)}`;
   $('#map').src = `https://maps.google.com/maps?q=${encodeURIComponent(place)}&z=17&hl=hr&output=embed`;
   $('#map-link').href = route;
-  $('#address-line').innerHTML = `<strong>${esc([b.address, b.city].filter(Boolean).join(', '))}</strong>`;
   $('#route-btn').href = route;
   $('#loc-link').href = route;
 }
