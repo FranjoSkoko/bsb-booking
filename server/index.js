@@ -315,7 +315,7 @@ admin.put('/settings', wrap(async (req, res) => {
   const cur = await getSettings();
   const { business, hours, rules, notify } = req.body;
   if (business) {
-    const allowed = ['name', 'owner', 'address', 'city', 'phone', 'whatsapp', 'email', 'instagram', 'instagramUrl', 'reviewUrl'];
+    const allowed = ['name', 'owner', 'address', 'city', 'phone', 'whatsapp', 'email', 'instagram', 'instagramUrl', 'reviewUrl', 'mapQuery'];
     const next = { ...cur.business };
     for (const k of allowed) if (k in business) next[k] = String(business[k] ?? '').trim().slice(0, 300);
     await saveSetting('business', next);

@@ -496,6 +496,7 @@ async function viewSettings(v) {
         <div class="field compact"><label>WhatsApp link</label><input id="b-wa" value="${esc(biz.whatsapp)}"></div>
         <div class="field compact"><label>Instagram</label><input id="b-ig" value="${esc(biz.instagram)}"></div>
       </div>
+      <div class="field compact" style="margin-top:12px"><label>Lokacija na karti (naziv mjesta ili koordinate iz Google karata)</label><input id="b-map" value="${esc(biz.mapQuery)}" placeholder="npr. 43.3826, 17.5946"></div>
       <div class="field compact" style="margin-top:12px"><label>Link za Google recenzije (nije obavezno)</label><input id="b-review" value="${esc(biz.reviewUrl)}" placeholder="https://g.page/r/..."></div>
     </div>
 
@@ -568,7 +569,7 @@ async function viewSettings(v) {
         body: {
           hours: hrs,
           rules: { minNoticeHours: $('#r-notice').value, maxDaysAhead: $('#r-ahead').value, cancelHours: $('#r-cancel').value, bufferMin: $('#r-buffer').value, allowMultiple: $('#r-multi').checked, autoConfirm: $('#r-auto').checked },
-          business: { address: $('#b-address').value, city: $('#b-city').value, phone: $('#b-phone').value, email: $('#b-email').value, whatsapp: $('#b-wa').value, instagram: $('#b-ig').value, reviewUrl: $('#b-review').value },
+          business: { address: $('#b-address').value, city: $('#b-city').value, phone: $('#b-phone').value, email: $('#b-email').value, whatsapp: $('#b-wa').value, instagram: $('#b-ig').value, reviewUrl: $('#b-review').value, mapQuery: $('#b-map').value },
           notify: { reminders: $('#n-rem').checked, thanks: $('#n-thx').checked, dailySummary: $('#n-sum').checked },
         },
       });

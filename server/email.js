@@ -31,6 +31,11 @@ export const adminEmail = (business) => process.env.ADMIN_EMAIL || business.emai
 
 const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+export function mapsUrl(business) {
+  const q = business.mapQuery || [business.address, business.city].filter(Boolean).join(', ');
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+}
+
 const clean = (s) => String(s ?? '').replace(/[<>]/g, '');
 
 function vars(b, business) {
@@ -48,6 +53,7 @@ function vars(b, business) {
     napomena: clean(b.note) || '–',
     lokacija: [business.address, business.city].filter(Boolean).join(', '),
     link_otkazivanje: `${base}/rezervacija/${b.token}`,
+    link_karta: mapsUrl(business),
     link_rezervacija: `${base}/#rezervacija`,
   };
 }
@@ -80,6 +86,7 @@ const TEMPLATES = {
       `Bok ${v.ime},`,
       'vaš termin je potvrđen:',
       { box: [`${v.usluga}`, `${v.datum} u ${v.vrijeme}`, `📍 ${v.lokacija}`] },
+      `<a href="${v.link_karta}">Upute do salona (Google karte)</a>`,
       'Mali savjet: na termin dođite čistog lica, a večer prije nanesite hidratantnu kremu.',
       'Termin možete dodati u svoj kalendar pomoću priložene datoteke.',
       { button: 'Detalji ili otkazivanje', href: v.link_otkazivanje },
@@ -92,6 +99,7 @@ const TEMPLATES = {
       `Bok ${v.ime},`,
       'kako smo se dogovorile, vaš termin je pomaknut. Novi termin:',
       { box: [`${v.usluga}`, `${v.datum} u ${v.vrijeme}`, `📍 ${v.lokacija}`] },
+      `<a href="${v.link_karta}">Upute do salona (Google karte)</a>`,
       'U privitku je ažurirani termin za vaš kalendar.',
       { button: 'Detalji ili otkazivanje', href: v.link_otkazivanje },
       'Barbara',
@@ -103,6 +111,7 @@ const TEMPLATES = {
       `Bok ${v.ime},`,
       `samo kratki podsjetnik – ${extra.kada} imate termin: ${v.usluga} u ${v.vrijeme}.`,
       { box: [`📍 ${v.lokacija}`] },
+      `<a href="${v.link_karta}">Upute do salona (Google karte)</a>`,
       `Ako se nešto promijenilo, javite mi na ${extra.phone}.`,
       'Barbara',
     ],
@@ -167,7 +176,7 @@ Barbara Skoko Beauty · Makeup · Threading · ${escHtml(business.city)}<br>${es
 
 function renderText({ lines }, business) {
   const t = lines.map((l) => {
-    if (typeof l === 'string') return l.replace(/<br>/g, '\n').replace(/<[^>]+>/g, '');
+    if (typeof l === 'string') return l.replace(/<br>/g, '\n').replace(/<a href="([^"]+)">([^<]+)<\/a>/g, '$2: $1').replace(/<[^>]+>/g, '');
     if (l.box) return l.box.join('\n');
     if (l.button) return `${l.button}: ${l.href}`;
     return '';
