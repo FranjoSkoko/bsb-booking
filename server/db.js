@@ -101,6 +101,33 @@ CREATE TABLE IF NOT EXISTS gallery (
   sort INT NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS app_secrets (
+  key TEXT PRIMARY KEY,
+  value JSONB NOT NULL
+);
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id SERIAL PRIMARY KEY,
+  endpoint TEXT NOT NULL UNIQUE,
+  keys JSONB NOT NULL,
+  label TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_ok_at TIMESTAMPTZ
+);
+CREATE TABLE IF NOT EXISTS waitlist (
+  id SERIAL PRIMARY KEY,
+  token TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  phone TEXT NOT NULL DEFAULT '',
+  email TEXT NOT NULL DEFAULT '',
+  services JSONB NOT NULL,
+  date TEXT NOT NULL,
+  part TEXT NOT NULL DEFAULT 'bilo_kada',
+  note TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'ceka',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  notified_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS waitlist_date_idx ON waitlist (date);
 CREATE TABLE IF NOT EXISTS email_log (
   id SERIAL PRIMARY KEY,
   booking_id INT,
@@ -146,6 +173,26 @@ export async function saveSetting(key, value) {
     'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value',
     [key, JSON.stringify(value)]
   );
+}
+
+/** Dopuni „meta” (npr. kad je poslan pregled ili kopija) bez gaženja drugih polja. */
+export async function updateMeta(patch) {
+  await q(
+    `INSERT INTO settings (key, value) VALUES ('meta', $1) ON CONFLICT (key) DO UPDATE SET value = settings.value || EXCLUDED.value`,
+    [JSON.stringify(patch)]
+  );
+}
+
+/** Tajne vrijednosti (ključevi za obavijesti, link kalendara) – ne idu u postavke koje vidi preglednik. */
+export async function getSecret(key, create) {
+  const cur = await q('SELECT value FROM app_secrets WHERE key = $1', [key]);
+  if (cur.rowCount || !create) return cur.rows[0]?.value ?? null;
+  await q('INSERT INTO app_secrets (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING', [key, JSON.stringify(create())]);
+  return (await q('SELECT value FROM app_secrets WHERE key = $1', [key])).rows[0].value;
+}
+
+export async function setSecret(key, value) {
+  await q('INSERT INTO app_secrets (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value', [key, JSON.stringify(value)]);
 }
 
 export async function getServices({ onlyActive = false } = {}) {

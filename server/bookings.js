@@ -3,6 +3,7 @@ import { daySlots, combine, BUSY_STATUSES } from './slots.js';
 import { nowLocal, addDays, parseYmd, toMin, wallMinutes } from './time.js';
 import { randomToken } from './auth.js';
 import { sendBookingEmail } from './email.js';
+import { emit } from './hooks.js';
 
 export class UserError extends Error {
   constructor(message, status = 400) {
@@ -103,7 +104,7 @@ export async function availableDays(serviceIds) {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-function cleanInput({ name, phone, email, note }, { requireContact = true } = {}) {
+export function cleanInput({ name, phone, email, note }, { requireContact = true } = {}) {
   name = String(name || '').trim().replace(/\s+/g, ' ').slice(0, 80);
   phone = String(phone || '').trim().slice(0, 30);
   email = String(email || '').trim().toLowerCase().slice(0, 120);
@@ -191,6 +192,7 @@ export async function createBooking(input, { fromAdmin = false } = {}) {
       await sendBookingEmail('novi_zahtjev', booking, biz, { toAdmin: true });
     }
   });
+  inBackground(booking.id, () => emit('booked', booking, { fromAdmin }));
   return booking;
 }
 
@@ -267,6 +269,10 @@ export async function changeStatus(id, status, { notify = true, byClient = false
   });
 
   const { booking, changed } = updated;
+  if (changed && BUSY_STATUSES.includes(updated.prev) && !BUSY_STATUSES.includes(status)) {
+    inBackground(booking.id, () => emit('slotFreed', booking.date));
+  }
+  if (changed && byClient && status === 'otkazano') inBackground(booking.id, () => emit('clientCancelled', booking));
   if (changed && notify) {
     const biz = settings.business;
     inBackground(booking.id, async () => {
@@ -284,7 +290,7 @@ export async function changeStatus(id, status, { notify = true, byClient = false
 /** Barbara mijenja termin (datum, vrijeme, trajanje, cijenu, bilješku). */
 export async function updateBooking(id, input, { notify = false } = {}) {
   const settings = await getSettings();
-  const { booking, moved } = await tx(async (db) => {
+  const { booking, moved, oldDate } = await tx(async (db) => {
     const cur = (await db.query('SELECT * FROM bookings WHERE id = $1 FOR UPDATE', [id])).rows[0];
     if (!cur) throw new UserError('Rezervacija ne postoji.', 404);
     const date = input.date ?? cur.date;
@@ -306,8 +312,9 @@ export async function updateBooking(id, input, { notify = false } = {}) {
        WHERE id = $1 RETURNING *`,
       [id, date, start, duration, price, input.admin_note != null ? String(input.admin_note).slice(0, 1000) : cur.admin_note, moved]
     );
-    return { booking: rowToBooking(r.rows[0]), moved };
+    return { booking: rowToBooking(r.rows[0]), moved: moved && BUSY_STATUSES.includes(cur.status), oldDate: cur.date };
   });
+  if (moved) inBackground(booking.id, () => emit('slotFreed', oldDate));
   if (moved && notify && booking.status === 'potvrdeno') {
     inBackground(booking.id, () => sendBookingEmail('promijenjen', booking, settings.business, { extra: clientMailExtra(booking, settings.rules) }));
   }

@@ -16,6 +16,10 @@ Web aplikacija za rezervaciju termina (makeup i obrve, Široki Brijeg). Klijenti
 - Kalendar (tjedan i mjesec), ručni upis termina (telefonom dogovoreni), pomicanje termina, „nije došla”.
 - Blokiranje dana ili sati (godišnji, privatne obaveze).
 - Karton klijentica: povijest posjeta, bilješke, brisanje podataka na zahtjev.
+- Dodatne mogućnosti (Postavke → Dodatne mogućnosti, svaka ima prekidač):
+  - Obavijesti na mobitel (Web Push) za nove zahtjeve, otkazivanja i upise na listu čekanja. Na iPhoneu administraciju treba dodati na početni zaslon (Safari → Dijeli → Dodaj na početni zaslon). Ključevi se stvore sami; po želji se mogu zadati varijablama VAPID_PUBLIC_KEY i VAPID_PRIVATE_KEY.
+  - Tjedna sigurnosna kopija: ponedjeljkom ujutro na Barbarin email stiže JSON sa svim podacima (bez slika) i CSV termina. Može se poslati ili preuzeti i ručno.
+  - Lista čekanja: na stranici za rezervaciju klijentica se upiše za dan; kad se termin oslobodi (otkazivanje, odbijanje, pomicanje, brisanje blokade), dobije email sa slobodnim vremenima i linkom. Upisi se vide pod Zahtjevi.
 - Analitika (mjesec, godina, sve): promet od odrađenih termina, odrađeno / otkazano / nije došla, promet po mjesecima, usluge, dani i sati, nove i povratne klijentice, popunjenost radnog vremena, klijentice kojima je vrijeme za poruku i preuzimanje termina za Excel (CSV). Odrađeno = potvrđen termin koji je prošao.
 - Postavke: usluge i cijene, radno vrijeme, pravila, adresa, fotografija za „O meni” (zadana je `public/assets/photos/barbara-o-meni.jpg`), radovi, probni emailovi i popis poslanih emailova.
 - Link za Instagram bio: `/rezerviraj` (ili `/rezerviraj?usluga=sminkanje`).

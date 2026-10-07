@@ -1,7 +1,8 @@
-import { q, getSettings, saveSetting } from './db.js';
-import { nowLocal, addDays, wallMinutes, toHHMM, formatDateHr } from './time.js';
+import { q, getSettings, updateMeta } from './db.js';
+import { nowLocal, addDays, wallMinutes, toHHMM, formatDateHr, diffDays } from './time.js';
 import { rowToBooking } from './bookings.js';
 import { sendBookingEmail, sendRaw, buildCustom, adminEmail, baseUrl } from './email.js';
+import { sendBackup } from './backup.js';
 
 let running = false;
 
@@ -9,7 +10,7 @@ let running = false;
 export async function runScheduledJobs(now = nowLocal()) {
   if (running) return { skipped: true };
   running = true;
-  const result = { reminders: 0, thanks: 0, summary: false };
+  const result = { reminders: 0, thanks: 0, summary: false, backup: false };
   try {
     const settings = await getSettings();
     const biz = settings.business;
@@ -47,7 +48,7 @@ export async function runScheduledJobs(now = nowLocal()) {
     }
 
     if (settings.notify.dailySummary && now.min >= 7 * 60 && settings.meta.lastSummary !== now.date) {
-      await saveSetting('meta', { ...settings.meta, lastSummary: now.date });
+      await updateMeta({ lastSummary: now.date });
       const today = await q(
         `SELECT * FROM bookings WHERE date = $1 AND status = ANY($2) ORDER BY start_min`,
         [now.date, ['potvrdeno', 'na_cekanju']]
@@ -67,6 +68,16 @@ export async function runScheduledJobs(now = nowLocal()) {
         await sendRaw({ to: adminEmail(biz), ...mail, kind: 'dnevni_pregled' });
         result.summary = true;
       }
+    }
+
+    // Tjedna sigurnosna kopija: ponedjeljkom ujutro (ili čim aplikacija proradi ako je propuštena)
+    const last = settings.meta.lastBackup;
+    const due = !last || diffDays(last, now.date) >= 8 || (now.dow === 1 && last !== now.date);
+    if (settings.features.backup && due && now.min >= 7 * 60 + 15) {
+      await updateMeta({ lastBackup: now.date }); // da se ne šalje dvaput ako slanje traje
+      result.backup = await sendBackup();
+      // Neuspjelo slanje (npr. email nije podešen) – novi pokušaj sutra, ne svakih 5 minuta
+      if (!result.backup) await updateMeta({ lastBackup: addDays(now.date, -7) });
     }
   } catch (err) {
     console.error('[raspored] greška:', err);

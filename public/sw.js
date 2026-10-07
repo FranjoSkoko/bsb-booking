@@ -25,3 +25,25 @@ self.addEventListener('fetch', (e) => {
     return res;
   }).catch(() => caches.match(e.request)));
 });
+
+// Obavijesti za Barbaru (novi zahtjev, otkazivanje, lista čekanja)
+self.addEventListener('push', (e) => {
+  let data = {};
+  try { data = e.data ? e.data.json() : {}; } catch { data = { title: e.data?.text() }; }
+  e.waitUntil(self.registration.showNotification(data.title || 'Barbara Skoko Beauty', {
+    body: data.body || '',
+    tag: data.tag,
+    icon: '/assets/logo/icon_192.png',
+    badge: '/assets/logo/favicon_32.png',
+    data: { url: data.url || '/admin' },
+  }));
+});
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = new URL(e.notification.data?.url || '/admin', self.location.origin).href;
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    const open = list.find((c) => c.url.includes('/admin'));
+    if (open) return open.navigate(url).then((c) => (c || open).focus()).catch(() => open.focus());
+    return self.clients.openWindow(url);
+  }));
+});
