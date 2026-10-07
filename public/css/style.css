@@ -203,27 +203,10 @@ section { padding: clamp(64px, 10vw, 112px) 0; }
   .route-btn { margin-top: 16px; }
 }
 
-footer.site-footer { background: var(--ink); color: var(--rose-light); text-align: center; padding: 8px 0 calc(28px + env(safe-area-inset-bottom)); }
-.footer-inner { display: flex; flex-direction: column; align-items: center; }
-.footer-inner::before { content: ""; width: 100%; height: 1px; margin-bottom: 48px; background: linear-gradient(90deg, transparent, rgba(212, 178, 166, .35), transparent); }
-.footer-logo img { width: 150px; height: auto; opacity: .95; }
-.footer-nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 28px; margin: 28px 0 24px; }
-.footer-nav a, .footer-bottom a { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; text-decoration: none; color: var(--cream); opacity: .8; transition: opacity .2s, color .2s; }
-.footer-nav a:hover, .footer-bottom a:hover { opacity: 1; color: var(--rose-light); }
-.footer-social { display: flex; gap: 14px; }
-.footer-social a { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid rgba(212, 178, 166, .45); border-radius: 50%; color: var(--rose-light); transition: background .2s, color .2s, border-color .2s; }
-.footer-social a:hover { background: var(--rose-light); border-color: var(--rose-light); color: var(--ink); }
-.footer-social a[hidden] { display: none; }
-.footer-social svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; }
-.footer-social svg .dot, .footer-social svg .fill { fill: currentColor; stroke: none; }
-.footer-bottom { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 24px; width: 100%; margin-top: 44px; padding-top: 20px; border-top: 1px solid rgba(243, 237, 231, .1); font-size: 12px; letter-spacing: .08em; color: rgba(243, 237, 231, .55); }
-.footer-bottom a { font-size: 11px; letter-spacing: .14em; }
-@media (max-width: 560px) {
-  .footer-inner::before { margin-bottom: 40px; }
-  .footer-logo img { width: 128px; }
-  .footer-nav { display: grid; grid-template-columns: repeat(2, auto); justify-items: center; gap: 14px 40px; }
-  .footer-bottom { flex-direction: column; justify-content: center; margin-top: 36px; font-size: 11px; letter-spacing: .04em; }
-}
+footer.site-footer { background: var(--ink); color: var(--rose-light); text-align: center; padding: 28px var(--pad) 40px; font-size: 12px; letter-spacing: .12em; border-top: 1px solid rgba(243, 237, 231, .18); }
+footer.site-footer a { color: var(--rose-light); }
+footer.site-footer p { margin: 0 0 6px; }
+footer.site-footer p:last-child { margin: 0; }
 
 /* ---------- Rezervacija ---------- */
 .booking { max-width: 760px; margin: 0 auto; }
