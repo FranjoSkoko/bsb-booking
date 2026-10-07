@@ -2,7 +2,7 @@ import pg from 'pg';
 import { DEFAULT_SERVICES, DEFAULT_SETTINGS } from './defaults.js';
 
 if (!process.env.DATABASE_URL) {
-  console.error('\n[BSB] Nedostaje DATABASE_URL. Na Replitu otvorite alat "Database" i dodajte PostgreSQL bazu.\n');
+  console.error('\n[BSB] Nedostaje DATABASE_URL. Dodajte PostgreSQL bazu i varijablu DATABASE_URL (na Railwayu: ${{Postgres.DATABASE_URL}}).\n');
   process.exit(1);
 }
 

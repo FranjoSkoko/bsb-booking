@@ -520,7 +520,7 @@ async function viewSettings(v) {
 
     <h3>Email</h3>
     <div class="panel" style="padding:16px 20px">
-      <p class="small">${status.emailConfigured ? `Slanje emailova je uključeno. Obavijesti stižu na <strong>${esc(status.adminEmail)}</strong>.` : '<strong>Slanje emailova još nije podešeno.</strong> U Replitu dodajte tajne SMTP_USER i SMTP_PASS (vidi README).'}</p>
+      <p class="small">${status.emailConfigured ? `Slanje emailova je uključeno. Obavijesti stižu na <strong>${esc(status.adminEmail)}</strong>.` : '<strong>Slanje emailova još nije podešeno.</strong> Na Railwayu dodajte varijable MAIL_RELAY_URL i MAIL_RELAY_KEY (vidi README).'}</p>
       <div class="toolbar"><input id="test-to" type="email" value="${esc(status.adminEmail)}" style="min-height:40px;padding:6px 12px;border:1px solid var(--line);flex:1;min-width:200px"><button class="btn btn-small btn-outline" id="test-email">Pošalji probne emailove</button></div>
       <table class="log">${emails.slice(0, 15).map((e) => `<tr><td>${new Date(e.created_at).toLocaleString('hr-HR', { timeZone: 'Europe/Sarajevo', dateStyle: 'short', timeStyle: 'short' })}</td><td>${esc(e.subject)}<br><span class="muted">${esc(e.to_addr)}</span></td><td>${e.status === 'poslano' ? 'poslano' : `<span class="error">${esc(e.status)}</span>`}</td></tr>`).join('') || '<tr><td class="muted">Još nema poslanih emailova.</td></tr>'}</table>
     </div>`;
@@ -634,7 +634,7 @@ async function start() {
   state.settings = settings;
   state.services = services;
   const warn = [];
-  if (!status.emailConfigured) warn.push('Emailovi se još ne šalju – u Replitu dodajte SMTP_USER i SMTP_PASS.');
+  if (!status.emailConfigured) warn.push('Emailovi se još ne šalju – na Railwayu dodajte MAIL_RELAY_URL i MAIL_RELAY_KEY (vidi README).');
   if (!settings.business.address) warn.push('Upišite adresu salona u Postavkama – prikazuje se u emailovima i na karti.');
   $('#banner').innerHTML = warn.map((w) => `<div class="warn">${esc(w)}</div>`).join('');
   const tab = location.hash.slice(1);

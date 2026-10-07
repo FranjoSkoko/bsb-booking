@@ -171,16 +171,29 @@ export async function createBooking(input, { fromAdmin = false } = {}) {
 
   // Emailovi (greške u slanju ne ruše rezervaciju)
   const biz = settings.business;
-  if (fromAdmin) {
-    if (input.notify && booking.email) await sendBookingEmail('potvrden', booking, biz);
-  } else if (status === 'potvrdeno') {
-    await sendBookingEmail('potvrden', booking, biz);
-    await sendBookingEmail('novi_zahtjev', booking, biz, { toAdmin: true });
-  } else {
-    await sendBookingEmail('zaprimljen', booking, biz);
-    await sendBookingEmail('novi_zahtjev', booking, biz, { toAdmin: true });
-  }
+  inBackground(booking.id, async () => {
+    if (fromAdmin) {
+      if (input.notify && booking.email) await sendBookingEmail('potvrden', booking, biz);
+    } else if (status === 'potvrdeno') {
+      await sendBookingEmail('potvrden', booking, biz);
+      await sendBookingEmail('novi_zahtjev', booking, biz, { toAdmin: true });
+    } else {
+      await sendBookingEmail('zaprimljen', booking, biz);
+      await sendBookingEmail('novi_zahtjev', booking, biz, { toAdmin: true });
+    }
+  });
   return booking;
+}
+
+// Mailovi idu u pozadini: klijentica i Barbara dobiju odgovor odmah, a ishod slanja se zapisuje u email_log.
+// Mailovi iste rezervacije idu redom (npr. „zaprimljen” uvijek prije „otkazan”).
+const mailQueues = new Map();
+function inBackground(bookingId, job) {
+  const next = (mailQueues.get(bookingId) || Promise.resolve())
+    .then(job)
+    .catch((err) => console.error('[email greška]', err.message));
+  mailQueues.set(bookingId, next);
+  next.then(() => { if (mailQueues.get(bookingId) === next) mailQueues.delete(bookingId); });
 }
 
 export async function getBookingById(id) {
@@ -239,12 +252,14 @@ export async function changeStatus(id, status, { notify = true, byClient = false
   const { booking, changed } = updated;
   if (changed && notify) {
     const biz = settings.business;
-    if (status === 'potvrdeno' && updated.prev !== 'nije_dosla') await sendBookingEmail('potvrden', booking, biz);
-    if (status === 'odbijeno') await sendBookingEmail('odbijen', booking, biz);
-    if (status === 'otkazano') {
-      await sendBookingEmail('otkazan', booking, biz);
-      if (byClient) await sendBookingEmail('otkazan_admin', booking, biz, { toAdmin: true });
-    }
+    inBackground(booking.id, async () => {
+      if (status === 'potvrdeno' && updated.prev !== 'nije_dosla') await sendBookingEmail('potvrden', booking, biz);
+      if (status === 'odbijeno') await sendBookingEmail('odbijen', booking, biz);
+      if (status === 'otkazano') {
+        await sendBookingEmail('otkazan', booking, biz);
+        if (byClient) await sendBookingEmail('otkazan_admin', booking, biz, { toAdmin: true });
+      }
+    });
   }
   return booking;
 }
@@ -277,7 +292,7 @@ export async function updateBooking(id, input, { notify = false } = {}) {
     return { booking: rowToBooking(r.rows[0]), moved };
   });
   if (moved && notify && booking.status === 'potvrdeno') {
-    await sendBookingEmail('promijenjen', booking, settings.business);
+    inBackground(booking.id, () => sendBookingEmail('promijenjen', booking, settings.business));
   }
   return booking;
 }

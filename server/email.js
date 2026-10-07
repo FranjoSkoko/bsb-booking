@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { relayConfigured, sendViaRelay } from './mailrelay.js';
 import { q } from './db.js';
 import { formatDateHr, toHHMM } from './time.js';
 import { bookingIcs } from './ics.js';
@@ -8,17 +9,20 @@ import { baseUrl } from './config.js';
 export { baseUrl };
 
 let transport = null;
+const smtpConfigured = () => Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
 export function emailConfigured() {
-  return Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
+  return relayConfigured() || smtpConfigured();
 }
 function getTransport() {
-  if (!emailConfigured()) return null;
+  if (!smtpConfigured()) return null;
   if (!transport) {
     const port = Number(process.env.SMTP_PORT || 465);
     transport = nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'smtp.gmail.com',
       port,
       secure: port === 465,
+      // Kad je SMTP blokiran (npr. Railway bez Pro plana), ne čekaj zadane 2 minute.
+      connectionTimeout: 15000, greetingTimeout: 10000, socketTimeout: 30000,
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
     });
   }
@@ -205,18 +209,23 @@ export function buildEmail(kind, booking, business, extra = {}) {
 }
 
 export async function sendRaw({ to, subject, html, text, attachments, kind = 'ostalo', bookingId = null, replyTo }) {
-  const t = getTransport();
-  if (!t) {
-    console.log(`[email nije poslan – SMTP nije podešen] ${kind} → ${to}: ${subject}`);
+  const relay = relayConfigured();
+  const t = relay ? null : getTransport();
+  if (!relay && !t) {
+    console.log(`[email nije poslan – slanje nije podešeno] ${kind} → ${to}: ${subject}`);
     await q('INSERT INTO email_log (booking_id, kind, to_addr, subject, status, error) VALUES ($1,$2,$3,$4,$5,$6)',
-      [bookingId, kind, to, subject, 'nije_poslano', 'SMTP nije podešen (SMTP_USER / SMTP_PASS)']);
+      [bookingId, kind, to, subject, 'nije_poslano', 'Slanje nije podešeno (MAIL_RELAY_URL / MAIL_RELAY_KEY ili SMTP_USER / SMTP_PASS)']);
     return false;
   }
   try {
-    await t.sendMail({
-      from: process.env.MAIL_FROM || `Barbara Skoko Beauty <${process.env.SMTP_USER}>`,
-      to, subject, html, text, attachments, replyTo,
-    });
+    if (relay) {
+      await sendViaRelay({ to, subject, html, text, attachments, replyTo, name: 'Barbara Skoko Beauty' });
+    } else {
+      await t.sendMail({
+        from: process.env.MAIL_FROM || `Barbara Skoko Beauty <${process.env.SMTP_USER}>`,
+        to, subject, html, text, attachments, replyTo,
+      });
+    }
     await q('INSERT INTO email_log (booking_id, kind, to_addr, subject, status) VALUES ($1,$2,$3,$4,$5)', [bookingId, kind, to, subject, 'poslano']);
     return true;
   } catch (err) {
