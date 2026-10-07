@@ -260,13 +260,21 @@ function showDone(res, data) {
     <p class="notice" style="margin-top:16px">${confirmed
       ? `Potvrda je poslana na ${esc(data.email)}.`
       : `Potvrdu zahtjeva poslali smo na ${esc(data.email)}. Termin je potvrđen kad vam Barbara odgovori emailom.`}</p>
+    <p class="notice">${cancelRuleText()}</p>
     <div class="actions">
       <a class="btn" href="/rezervacija/${encodeURIComponent(res.token)}">Moja rezervacija</a>
-      <a class="btn btn-outline" href="/api/bookings/${encodeURIComponent(res.token)}/ics">Dodaj u kalendar</a>
-    </div>`;
+      ${confirmed ? `<a class="btn btn-outline" href="/api/bookings/${encodeURIComponent(res.token)}/ics">Dodaj u kalendar</a>` : ''}
+    </div>
+    <p style="margin-top:20px"><button type="button" class="btn-link" id="new-booking">Nova rezervacija</button></p>`;
+  $('#new-booking').addEventListener('click', () => { renderServices(); goStep(1); });
   state.selected.clear();
   state.date = null; state.time = null;
   goStep('done');
+}
+
+function cancelRuleText() {
+  const h = state.config.rules.cancelHours;
+  return `Termin možete sami otkazati putem linka iz emaila ${h > 0 ? `najkasnije ${h} h prije` : 'do početka termina'}, a nakon toga nazovite Barbaru ili joj pišite na WhatsApp.`;
 }
 
 // ---------- kontakt, galerija ----------
@@ -314,12 +322,17 @@ function renderGallery() {
     return;
   }
   if (state.config.rules.autoConfirm) $('#confirm-note').textContent = 'Termin se potvrđuje odmah, a potvrdu dobivate emailom.';
+  $('#confirm-note').insertAdjacentHTML('afterend', `<p class="notice">${cancelRuleText()}</p>`);
   const pre = new URLSearchParams(location.search).get('usluga');
   if (pre && state.config.services.some((s) => s.id === pre)) state.selected.add(pre);
   renderPriceList();
   renderServices();
   renderContact();
   renderGallery();
+  // Sadržaj iznad (cjenik) stigne tek sada, pa preglednik promaši #rezervacija iz linka – ponovi skok
+  if (location.hash.length > 1) {
+    try { document.querySelector(location.hash)?.scrollIntoView(); } catch { /* neispravan hash */ }
+  }
 })();
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});

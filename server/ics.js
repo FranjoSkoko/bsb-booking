@@ -23,6 +23,25 @@ const VTIMEZONE = [
 const esc = (s) => String(s).replace(/[\\;,]/g, (c) => '\\' + c).replace(/\n/g, '\\n');
 const stamp = (date, min) => `${date.replace(/-/g, '')}T${toHHMM(min).replace(':', '')}00`;
 
+// Redovi duži od 75 bajtova lome se u nastavke (RFC 5545), bez rezanja slova poput "š" na pola
+function fold(line) {
+  const out = [];
+  let cur = '';
+  let limit = 75;
+  for (const ch of line) {
+    if (Buffer.byteLength(cur + ch) > limit) {
+      out.push(cur);
+      cur = '';
+      limit = 74; // nastavak počinje razmakom
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.join('\r\n ');
+}
+
+const STATUS = { potvrdeno: 'CONFIRMED', na_cekanju: 'TENTATIVE', otkazano: 'CANCELLED', odbijeno: 'CANCELLED' };
+
 export function bookingIcs(b, business, baseUrl) {
   const names = b.services.map((s) => s.name).join(' + ');
   const location = [business.address, business.city].filter(Boolean).join(', ');
@@ -36,11 +55,12 @@ export function bookingIcs(b, business, baseUrl) {
     'BEGIN:VEVENT',
     `UID:bsb-${b.id}-${b.token.slice(0, 8)}@barbaraskokobeauty`,
     `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`,
+    `STATUS:${STATUS[b.status] || 'CONFIRMED'}`,
     `DTSTART;TZID=Europe/Sarajevo:${stamp(b.date, b.start_min)}`,
     `DTEND;TZID=Europe/Sarajevo:${stamp(b.date, b.start_min + b.duration)}`,
     `SUMMARY:${esc(`${names} – Barbara Skoko Beauty`)}`,
     `LOCATION:${esc(location)}`,
-    `DESCRIPTION:${esc(`Vaš termin: ${names}. Detalji i otkazivanje: ${baseUrl}/rezervacija/${b.token}`)}`,
+    `DESCRIPTION:${esc(`Vaš termin: ${names}. Detalji: ${baseUrl}/rezervacija/${b.token}`)}`,
     'BEGIN:VALARM',
     'TRIGGER:-PT2H',
     'ACTION:DISPLAY',
@@ -48,5 +68,5 @@ export function bookingIcs(b, business, baseUrl) {
     'END:VALARM',
     'END:VEVENT',
     'END:VCALENDAR',
-  ].join('\r\n');
+  ].map(fold).join('\r\n') + '\r\n';
 }

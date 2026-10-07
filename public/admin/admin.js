@@ -108,6 +108,18 @@ async function refreshBadge() {
 }
 
 // ---------- zajednički prikaz rezervacije ----------
+// 063 …, +387 63 …, 00387 63 … → 38763… (isto kao server/phone.js)
+function phoneDigits(phone) {
+  const raw = String(phone || '').trim();
+  const d = raw.replace(/\D/g, '');
+  if (!d) return '';
+  if (raw.startsWith('+')) return d;
+  if (d.startsWith('00')) return d.slice(2);
+  if (d.startsWith('0')) return '387' + d.slice(1);
+  if (d.length <= 9) return '387' + d;
+  return d;
+}
+
 function bookingRow(b, { showDate = false, quick = false } = {}) {
   const dim = ['odbijeno', 'otkazano', 'nije_dosla'].includes(b.status) ? 'dim' : '';
   return `<div class="row ${dim}" data-booking="${b.id}">
@@ -118,7 +130,8 @@ function bookingRow(b, { showDate = false, quick = false } = {}) {
       ${b.note ? `<div class="what">„${esc(b.note)}”</div>` : ''}
     </div>
     <div class="actions">
-      ${quick && b.status === 'na_cekanju' ? `<button class="btn btn-small" data-quick="potvrdeno">Potvrdi</button><button class="btn btn-small btn-outline" data-quick="odbijeno">Odbij</button>` : `<span class="status-pill st-${b.status}">${STATUS[b.status]}</span>`}
+      ${quick && b.status === 'na_cekanju' && b.started ? '<span class="status-pill st-nije_dosla">Prošlo</span>'
+        : quick && b.status === 'na_cekanju' ? `<button class="btn btn-small" data-quick="potvrdeno">Potvrdi</button><button class="btn btn-small btn-outline" data-quick="odbijeno">Odbij</button>` : `<span class="status-pill st-${b.status}">${STATUS[b.status]}</span>`}
     </div>
   </div>`;
 }
@@ -138,6 +151,7 @@ function wireRows(root, bookings) {
       const quick = e.target.closest('[data-quick]');
       if (quick) {
         e.stopPropagation();
+        if (quick.dataset.quick === 'odbijeno' && !confirm('Odbiti termin? Klijentica će odmah dobiti email.')) return;
         setStatus(b, quick.dataset.quick, true);
         return;
       }
@@ -155,15 +169,16 @@ function wireRows(root, bookings) {
 async function setStatus(b, status, notify) {
   try {
     await api(`/api/admin/bookings/${b.id}/status`, { method: 'POST', body: { status, notify } });
-    toast(`${STATUS[status]}${notify && b.email && status !== 'nije_dosla' ? ' · klijentici je poslan email' : ''}`);
+    const mailed = notify && b.email && status !== 'nije_dosla' && !(status === 'potvrdeno' && b.status === 'nije_dosla');
+    toast(`${STATUS[status]}${mailed ? ' · klijentici je poslan email' : ''}`);
     modal.close();
     render();
   } catch (err) { toast(err.message); }
 }
 
 function bookingModal(b) {
-  const tel = (b.phone || '').replace(/[^\d+]/g, '');
-  const wa = tel.replace(/^\+/, '').replace(/^0/, '387');
+  const wa = phoneDigits(b.phone);
+  const tel = wa ? '+' + wa : '';
   const actions = {
     na_cekanju: [['potvrdeno', 'Potvrdi', ''], ['odbijeno', 'Odbij', 'btn-outline']],
     potvrdeno: [['otkazano', 'Otkaži', 'btn-outline'], ['nije_dosla', 'Nije došla', 'btn-outline']],
@@ -413,7 +428,7 @@ async function viewClients(v, query = '') {
 
 async function clientModal(id) {
   const c = await api(`/api/admin/clients/${id}`);
-  const tel = (c.phone || '').replace(/[^\d+]/g, '');
+  const tel = phoneDigits(c.phone) ? '+' + phoneDigits(c.phone) : '';
   modal.open(`
     <div class="modal-head"><h2>${esc(c.name)}</h2><button class="close-x" data-close aria-label="Zatvori">×</button></div>
     <dl class="kv">
