@@ -43,8 +43,11 @@ Railway sam objavi svaku izmjenu s GitHuba (grana `main`) i aplikacija stalno ra
    | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (referenca na bazu) |
    | `ADMIN_PASSWORD` | lozinka za administraciju |
    | `SESSION_SECRET` | dugi nasumični niz znakova |
-   | `SMTP_USER` | `barbaraskokobeauty@gmail.com` |
-   | `SMTP_PASS` | Gmail App password (vidi niže) |
+   | `MAIL_RELAY_URL` | adresa Google skripte za mailove (vidi niže) |
+   | `MAIL_RELAY_KEY` | isti ključ koji je upisan u skriptu |
+
+   Railway na besplatnom i Hobby planu blokira SMTP (slanje Gmail lozinkom), zato mailovi idu preko Google skripte.
+   `SMTP_USER` / `SMTP_PASS` rade samo na Railway Pro planu ili drugdje gdje SMTP nije blokiran.
 
 4. **Settings → Networking → Generate Domain**. Adresa (npr. `bsb-booking-production.up.railway.app`) automatski se koristi u linkovima u emailovima; `PUBLIC_URL` treba samo ako kasnije dodate vlastitu domenu.
 5. Otvorite adresu i `/admin` za prijavu.
@@ -66,7 +69,18 @@ Railway sam objavi svaku izmjenu s GitHuba (grana `main`) i aplikacija stalno ra
 4. Kliknite **Run** i otvorite `/admin` za prijavu.
 5. Za stalni rad: **Deploy → Reserved VM** (aplikacija mora stalno raditi da bi slala podsjetnike). Nakon objave upišite adresu u `PUBLIC_URL` i ponovno objavite.
 
-### Gmail App password
+### Mailovi preko Google skripte (Railway)
+Skripta šalje mailove s Barbarinog Gmaila preko HTTPS-a, besplatno, do oko 100 primatelja dnevno
+(jedna rezervacija potroši 4–5 mailova). Prijavljeni kao barbaraskokobeauty@gmail.com:
+1. Otvorite <https://script.google.com> → **Novi projekt**, obrišite sadržaj i zalijepite datoteku `gmail-skripta.gs` iz ovog repozitorija.
+2. U retku `const KLJUC = '...'` upišite dugi nasumični ključ (isti ide u `MAIL_RELAY_KEY`) i spremite.
+3. Gore odaberite funkciju **proba** i kliknite **Pokreni**. Google traži dopuštenje: odaberite Barbarin račun → *Napredno* → *Idi na projekt (nesigurno)* → **Dopusti**. Stiže mail „BSB: skripta za mailove radi”.
+4. **Implementiraj → Nova implementacija** → vrsta **Web-aplikacija**, *Izvrši kao*: **Ja**, *Tko ima pristup*: **Svi** → **Implementiraj**.
+5. Kopirajte URL web-aplikacije (završava s `/exec`) u `MAIL_RELAY_URL`.
+
+Ako kasnije promijenite skriptu, napravite **Implementiraj → Upravljanje implementacijama → Uredi → Nova verzija**, da URL ostane isti.
+
+### Gmail App password (samo za SMTP)
 Gmail ne dopušta slanje s običnom lozinkom. Na računu barbaraskokobeauty@gmail.com:
 1. Uključite **dvostruku provjeru** (Google račun → Sigurnost → Potvrda u dva koraka).
 2. Otvorite <https://myaccount.google.com/apppasswords>, napravite lozinku s imenom „BSB rezervacije”.

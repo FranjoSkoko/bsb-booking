@@ -195,7 +195,7 @@ app.post('/admin/akcija', express.urlencoded({ extended: false }), wrap(async (r
   if (!ACTIONS[a] || !verifyAction(b, a, s)) return res.status(403).send(actionPage('Neispravan link', '<h1>Link nije ispravan</h1>'));
   try {
     const booking = await changeStatus(Number(b), ACTIONS[a]);
-    res.send(actionPage('Gotovo', `<h1>${booking.status_label}</h1><p>${a === 'potvrdi' ? 'Klijentici je poslan email s potvrdom.' : 'Klijentici je poslan email s prijedlogom novog termina.'}</p><p><a class="btn btn-outline" href="/admin">Otvori administraciju</a></p>`));
+    res.send(actionPage('Gotovo', `<h1>${booking.status_label}</h1><p>${a === 'potvrdi' ? 'Klijentica će dobiti email s potvrdom.' : 'Klijentica će dobiti email s prijedlogom novog termina.'}</p><p><a class="btn btn-outline" href="/admin">Otvori administraciju</a></p>`));
   } catch (err) {
     if (err instanceof UserError) return res.status(err.status).send(actionPage('Greška', `<h1>${escHtml(err.message)}</h1><p><a href="/admin">Otvori administraciju</a></p>`));
     throw err;
@@ -450,6 +450,9 @@ await initDb();
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`[BSB] Aplikacija radi na ${baseUrl()} (port ${PORT})`);
   if (!process.env.ADMIN_PASSWORD) console.warn('[BSB] Upozorenje: ADMIN_PASSWORD nije postavljen – administracija je zaključana.');
-  if (!emailConfigured()) console.warn('[BSB] Upozorenje: SMTP_USER / SMTP_PASS nisu postavljeni – emailovi se ne šalju.');
+  if (Boolean(process.env.MAIL_RELAY_URL) !== Boolean(process.env.MAIL_RELAY_KEY)) {
+    console.warn('[BSB] Upozorenje: za slanje preko Google skripte trebaju obje varijable, MAIL_RELAY_URL i MAIL_RELAY_KEY.');
+  }
+  if (!emailConfigured()) console.warn('[BSB] Upozorenje: slanje emailova nije podešeno (MAIL_RELAY_URL / MAIL_RELAY_KEY ili SMTP_USER / SMTP_PASS) – emailovi se ne šalju.');
 });
 if (process.env.DISABLE_SCHEDULER !== '1') startScheduler();
