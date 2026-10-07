@@ -1107,7 +1107,7 @@ async function viewSettings(v) {
 
     <h3>Radovi · Šminka i lookovi</h3>
     <div class="panel" style="padding:16px 20px">
-      <p class="small">Na stranici su četiri zadana looka. Fotografije koje dodate ovdje dolaze iza njih (5, 6 …). Prikazuju se po četiri, a ostale se otvaraju gumbom „Prikaži više”.</p>
+      <p class="small">Na stranici su četiri zadana looka. Fotografije koje dodate ovdje dolaze iza njih (5, 6 …). Prikazuju se po četiri, a ostale se otvaraju gumbom „Više lookova”.</p>
       ${works.length ? `<div class="thumbs" id="thumbs">${works.map((g) => `<figure><img src="/api/gallery/${g.id}" alt=""><button data-del-img="${g.id}" aria-label="Obriši">×</button></figure>`).join('')}</div>` : ''}
       <div class="toolbar" style="margin-top:12px">
         <label class="btn btn-small btn-outline">Dodaj lookove<input type="file" id="img-input" accept="image/*" multiple hidden></label>
