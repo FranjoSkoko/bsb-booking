@@ -4,13 +4,14 @@ import { fileURLToPath } from 'node:url';
 import { q, initDb, getSettings, saveSetting, getServices, tx } from './db.js';
 import {
   UserError, createBooking, slotsFor, availableDays, getBookingByToken, getBookingById,
-  changeStatus, canClientCancel, updateBooking, rowToBooking, STATUS_LABEL,
+  changeStatus, canClientCancel, updateBooking, rowToBooking, STATUS_LABEL, hasStarted, clientMailExtra,
 } from './bookings.js';
 import { checkPassword, sessionCookie, clearSession, isAdmin, requireAdmin, verifyAction } from './auth.js';
 import { bookingIcs } from './ics.js';
-import { baseUrl, emailConfigured, buildEmail, sendRaw, adminEmail } from './email.js';
+import { baseUrl, emailConfigured, buildEmail, sendRaw, adminEmail, icsAttachment } from './email.js';
 import { runScheduledJobs, startScheduler } from './scheduler.js';
-import { nowLocal, toHHMM, toMin, formatDateHr, parseYmd } from './time.js';
+import { nowLocal, toHHMM, toMin, formatDateHr, parseYmd, addDays } from './time.js';
+import { telHref, waHref } from './phone.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, '..', 'public');
@@ -26,12 +27,16 @@ app.use((req, res, next) => {
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
+// Railway pravu adresu posjetitelja šalje u X-Real-IP; prvi unos u X-Forwarded-For može izmisliti sam posjetitelj
+const onRailway = Boolean(process.env.RAILWAY_ENVIRONMENT_NAME || process.env.RAILWAY_PUBLIC_DOMAIN);
+const clientIp = (req) => (onRailway && req.get('x-real-ip')) || req.ip;
+
 // Jednostavno ograničenje broja zahtjeva po IP adresi
 function rateLimit({ windowMs, max }) {
   const hits = new Map();
   return (req, res, next) => {
     const now = Date.now();
-    const key = req.ip;
+    const key = clientIp(req);
     const list = (hits.get(key) || []).filter((t) => now - t < windowMs);
     if (list.length >= max) return res.status(429).json({ error: 'Previše pokušaja. Pokušajte ponovno za nekoliko minuta.' });
     list.push(now);
@@ -102,7 +107,19 @@ app.post('/api/bookings', rateLimit({ windowMs: 10 * 60_000, max: 20 }), wrap(as
   res.status(201).json({ token: b.token, status: b.status, status_label: b.status_label });
 }));
 
+// Izmišljena rezervacija iz probnih emailova – njezini linkovi otvaraju primjer umjesto greške
+const SAMPLE_TOKEN = 'primjer';
+function sampleBooking(email = '') {
+  return {
+    id: 0, token: SAMPLE_TOKEN, name: 'Ana Anić', phone: '+387 63 000 000', email, date: addDays(nowLocal().date, 1),
+    start_min: 10 * 60, duration: 60, services: [{ id: 'sminkanje', name: 'Šminkanje', price: 60, duration: 60 }], total_price: 60,
+    note: 'Probna rezervacija', status: 'potvrdeno', status_label: STATUS_LABEL.potvrdeno,
+  };
+}
+const loadBooking = (token) => (token === SAMPLE_TOKEN ? sampleBooking() : getBookingByToken(token));
+
 async function publicBooking(b, settings) {
+  const biz = settings.business;
   return {
     token: b.token,
     name: b.name,
@@ -118,28 +135,37 @@ async function publicBooking(b, settings) {
     note: b.note,
     can_cancel: canClientCancel(b, settings.rules),
     cancel_hours: settings.rules.cancelHours,
+    started: hasStarted(b),
+    contact: { phone: biz.phone, tel: telHref(biz.phone), whatsapp: biz.whatsapp || waHref(biz.phone) },
+    demo: b.token === SAMPLE_TOKEN,
   };
 }
 
 app.get('/api/bookings/:token', wrap(async (req, res) => {
-  const b = await getBookingByToken(req.params.token);
+  const b = await loadBooking(req.params.token);
   if (!b) return res.status(404).json({ error: 'Rezervacija nije pronađena.' });
   res.json(await publicBooking(b, await getSettings()));
 }));
 
 app.post('/api/bookings/:token/cancel', rateLimit({ windowMs: 10 * 60_000, max: 10 }), wrap(async (req, res) => {
   const settings = await getSettings();
-  const b = await getBookingByToken(req.params.token);
+  const b = await loadBooking(req.params.token);
   if (!b) return res.status(404).json({ error: 'Rezervacija nije pronađena.' });
+  // Uz odbijenicu ide i trenutno stanje, da stranica (npr. stara kartica) prikaže stvarni status
+  const refuse = async (error) => res.status(409).json({ error, booking: await publicBooking(b, settings) });
+  if (b.token === SAMPLE_TOKEN) return refuse('Ovo je samo primjer iz probnog emaila – ništa nije otkazano.');
+  const done = { otkazano: 'Termin je već otkazan.', odbijeno: 'Ovaj termin nije potvrđen.', nije_dosla: 'Termin je prošao.' }[b.status];
+  if (done) return refuse(done);
+  if (hasStarted(b)) return refuse('Termin je već prošao.');
   if (!canClientCancel(b, settings.rules)) {
-    throw new UserError(`Termin se putem linka može otkazati najkasnije ${settings.rules.cancelHours} h prije. Javite se Barbari na ${settings.business.phone}.`, 409);
+    return refuse(`Termin se putem linka može otkazati najkasnije ${settings.rules.cancelHours} h prije. Javite se Barbari na ${settings.business.phone}.`);
   }
   const updated = await changeStatus(b.id, 'otkazano', { byClient: true });
   res.json(await publicBooking(updated, settings));
 }));
 
 app.get('/api/bookings/:token/ics', wrap(async (req, res) => {
-  const b = await getBookingByToken(req.params.token);
+  const b = await loadBooking(req.params.token);
   if (!b) return res.status(404).send('Nije pronađeno');
   const settings = await getSettings();
   res.set('Content-Type', 'text/calendar; charset=utf-8');
@@ -173,15 +199,22 @@ function actionPage(title, body) {
 
 const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+const adminBtn = '<p><a class="btn btn-outline" href="/admin">Otvori administraciju</a></p>';
+const demoActionPage = () => actionPage('Probni email', `<h1>Ovo je probni email</h1><p>U pravom emailu ovaj gumb potvrđuje ili odbija zahtjev za termin.</p>${adminBtn}`);
+const bookingInfo = (booking) => `<p class="action-info"><strong>${escHtml(booking.services.map((x) => x.name).join(' + '))}</strong><br>${formatDateHr(booking.date)} u ${toHHMM(booking.start_min)}<br>${escHtml(booking.name)}${booking.phone ? ` · <a href="${telHref(booking.phone)}">${escHtml(booking.phone)}</a>` : ''}</p>`;
+const startedPage = (booking) => actionPage('Termin je prošao', `<h1>Termin je već prošao</h1>${bookingInfo(booking)}<p>Ovaj zahtjev više se ne može potvrditi. Ako treba, promijenite ga u administraciji.</p>${adminBtn}`);
+
 app.get('/admin/akcija', wrap(async (req, res) => {
   const { b, a, s } = req.query;
-  if (!ACTIONS[a] || !verifyAction(b, a, s)) return res.status(403).send(actionPage('Neispravan link', '<h1>Link nije ispravan</h1><p><a class="btn" href="/admin">Otvori administraciju</a></p>'));
+  if (!ACTIONS[a] || !verifyAction(b, a, s)) return res.status(403).send(actionPage('Neispravan link', `<h1>Link nije ispravan</h1>${adminBtn}`));
+  if (Number(b) === 0) return res.send(demoActionPage());
   const booking = await getBookingById(Number(b));
-  if (!booking) return res.status(404).send(actionPage('Nije pronađeno', '<h1>Rezervacija ne postoji</h1>'));
-  const info = `<p class="action-info"><strong>${escHtml(booking.services.map((x) => x.name).join(' + '))}</strong><br>${formatDateHr(booking.date)} u ${toHHMM(booking.start_min)}<br>${escHtml(booking.name)} · ${escHtml(booking.phone)}</p>`;
+  if (!booking) return res.status(404).send(actionPage('Nije pronađeno', `<h1>Rezervacija ne postoji</h1>${adminBtn}`));
+  const info = bookingInfo(booking);
   if (booking.status !== 'na_cekanju') {
-    return res.send(actionPage('Već obrađeno', `<h1>Status: ${booking.status_label}</h1>${info}<p><a class="btn btn-outline" href="/admin">Otvori administraciju</a></p>`));
+    return res.send(actionPage('Već obrađeno', `<h1>Status: ${booking.status_label}</h1>${info}${adminBtn}`));
   }
+  if (a === 'potvrdi' && hasStarted(booking)) return res.send(startedPage(booking));
   // Gumb (POST) umjesto automatske promjene – da skeneri linkova u emailu ništa ne potvrde slučajno
   res.send(actionPage(a === 'potvrdi' ? 'Potvrda termina' : 'Odbijanje termina', `
     <h1>${a === 'potvrdi' ? 'Potvrditi termin?' : 'Odbiti termin?'}</h1>${info}
@@ -192,12 +225,18 @@ app.get('/admin/akcija', wrap(async (req, res) => {
 
 app.post('/admin/akcija', express.urlencoded({ extended: false }), wrap(async (req, res) => {
   const { b, a, s } = req.body;
-  if (!ACTIONS[a] || !verifyAction(b, a, s)) return res.status(403).send(actionPage('Neispravan link', '<h1>Link nije ispravan</h1>'));
+  if (!ACTIONS[a] || !verifyAction(b, a, s)) return res.status(403).send(actionPage('Neispravan link', `<h1>Link nije ispravan</h1>${adminBtn}`));
+  if (Number(b) === 0) return res.send(demoActionPage());
   try {
-    const booking = await changeStatus(Number(b), ACTIONS[a]);
-    res.send(actionPage('Gotovo', `<h1>${booking.status_label}</h1><p>${a === 'potvrdi' ? 'Klijentica će dobiti email s potvrdom.' : 'Klijentica će dobiti email s prijedlogom novog termina.'}</p><p><a class="btn btn-outline" href="/admin">Otvori administraciju</a></p>`));
+    const cur = await getBookingById(Number(b));
+    if (cur && cur.status === 'na_cekanju' && a === 'potvrdi' && hasStarted(cur)) return res.send(startedPage(cur));
+    // Samo zahtjev na čekanju – stari link ne smije vratiti termin koji je klijentica u međuvremenu otkazala
+    const booking = await changeStatus(Number(b), ACTIONS[a], { onlyFrom: ['na_cekanju'] });
+    const mail = !booking.email ? 'Klijentica nema email – javite joj se telefonom.'
+      : a === 'potvrdi' ? 'Klijentica će dobiti email s potvrdom.' : 'Klijentica će dobiti email da odabere drugo vrijeme.';
+    res.send(actionPage('Gotovo', `<h1>${booking.status_label}</h1><p>${mail}</p>${adminBtn}`));
   } catch (err) {
-    if (err instanceof UserError) return res.status(err.status).send(actionPage('Greška', `<h1>${escHtml(err.message)}</h1><p><a href="/admin">Otvori administraciju</a></p>`));
+    if (err instanceof UserError) return res.status(err.status).send(actionPage('Već obrađeno', `<h1>${escHtml(err.message)}</h1>${adminBtn}`));
     throw err;
   }
 }));
@@ -318,6 +357,13 @@ admin.put('/settings', wrap(async (req, res) => {
     const allowed = ['name', 'owner', 'address', 'city', 'phone', 'whatsapp', 'email', 'instagram', 'instagramUrl', 'reviewUrl', 'mapQuery'];
     const next = { ...cur.business };
     for (const k of allowed) if (k in business) next[k] = String(business[k] ?? '').trim().slice(0, 300);
+    // Linkovi na stranici i u mailovima moraju ostati ispravni kad Barbara promijeni ove podatke
+    if ('instagram' in business && !('instagramUrl' in business)) {
+      const handle = next.instagram.replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/^@/, '').replace(/[/?#].*$/, '');
+      if (handle) next.instagramUrl = `https://www.instagram.com/${handle}/`;
+    }
+    if (next.whatsapp && !/^https?:\/\//i.test(next.whatsapp)) next.whatsapp = waHref(next.whatsapp);
+    if (next.reviewUrl && !/^https?:\/\//i.test(next.reviewUrl)) throw new UserError('Link za recenzije mora počinjati s https://');
     await saveSetting('business', next);
   }
   if (hours) {
@@ -409,19 +455,18 @@ admin.get('/emails', wrap(async (req, res) => {
   res.json((await q('SELECT * FROM email_log ORDER BY id DESC LIMIT 100')).rows);
 }));
 
-// Probni emailovi – svih 8 predložaka s izmišljenom rezervacijom
+// Probni emailovi – svih 9 predložaka s izmišljenom rezervacijom (sutra u 10:00)
 admin.post('/test-email', wrap(async (req, res) => {
   const settings = await getSettings();
   const to = String(req.body.to || adminEmail(settings.business));
-  const sample = {
-    id: 0, token: 'primjer', name: 'Ana Anić', phone: '+387 63 000 000', email: to, date: nowLocal().date,
-    start_min: 10 * 60, duration: 60, services: [{ name: 'Šminkanje', price: 60, duration: 60 }], total_price: 60, note: 'Probna rezervacija',
-  };
-  const kinds = ['zaprimljen', 'novi_zahtjev', 'potvrden', 'podsjetnik', 'odbijen', 'otkazan', 'hvala', 'promijenjen'];
+  const sample = sampleBooking(to);
+  const extra = clientMailExtra(sample, settings.rules);
+  const kinds = ['zaprimljen', 'novi_zahtjev', 'potvrden', 'podsjetnik', 'odbijen', 'otkazan', 'otkazan_admin', 'hvala', 'promijenjen'];
   let ok = 0;
   for (const kind of kinds) {
-    const mail = buildEmail(kind, sample, settings.business);
-    if (await sendRaw({ to, ...mail, subject: `[PROBA] ${mail.subject}`, kind: 'proba' })) ok++;
+    const mail = buildEmail(kind, sample, settings.business, extra);
+    const attachments = ['potvrden', 'promijenjen'].includes(kind) ? [icsAttachment(sample, settings.business)] : undefined;
+    if (await sendRaw({ to, ...mail, attachments, subject: `[PROBA] ${mail.subject}`, kind: 'proba' })) ok++;
   }
   res.json({ sent: ok, total: kinds.length, to });
 }));

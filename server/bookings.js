@@ -42,7 +42,13 @@ export function rowToBooking(r) {
     cancelled_at: r.cancelled_at,
     reminder_sent_at: r.reminder_sent_at,
     thanks_sent_at: r.thanks_sent_at,
+    started: hasStarted(r),
   };
+}
+
+/** Je li termin već počeo (ili prošao). */
+export function hasStarted(b, now = nowLocal()) {
+  return wallMinutes(b.date, b.start_min) <= wallMinutes(now.date, now.min);
 }
 
 /** Zauzeti intervali po danima: { 'YYYY-MM-DD': [{start, end}] } */
@@ -114,7 +120,8 @@ function cleanInput({ name, phone, email, note }, { requireContact = true } = {}
 async function upsertClient(db, { name, phone, email }) {
   let found = null;
   if (email) found = (await db.query('SELECT id FROM clients WHERE lower(email) = $1 ORDER BY id LIMIT 1', [email])).rows[0];
-  if (!found && phone) found = (await db.query('SELECT id FROM clients WHERE phone = $1 ORDER BY id LIMIT 1', [phone])).rows[0];
+  // Po broju samo kad nema emaila (Barbara upisuje ručno) – inače bi se spojile dvije osobe s istim brojem
+  if (!found && phone && !email) found = (await db.query('SELECT id FROM clients WHERE phone = $1 ORDER BY id LIMIT 1', [phone])).rows[0];
   if (found) {
     await db.query(
       `UPDATE clients SET name = $2, phone = COALESCE(NULLIF($3, ''), phone), email = COALESCE(NULLIF($4, ''), email) WHERE id = $1`,
@@ -171,14 +178,15 @@ export async function createBooking(input, { fromAdmin = false } = {}) {
 
   // Emailovi (greške u slanju ne ruše rezervaciju)
   const biz = settings.business;
+  const extra = clientMailExtra(booking, settings.rules);
   inBackground(booking.id, async () => {
     if (fromAdmin) {
-      if (input.notify && booking.email) await sendBookingEmail('potvrden', booking, biz);
+      if (input.notify && booking.email) await sendBookingEmail('potvrden', booking, biz, { extra });
     } else if (status === 'potvrdeno') {
-      await sendBookingEmail('potvrden', booking, biz);
-      await sendBookingEmail('novi_zahtjev', booking, biz, { toAdmin: true });
+      await sendBookingEmail('potvrden', booking, biz, { extra });
+      await sendBookingEmail('novi_zahtjev', booking, biz, { toAdmin: true, extra: { autoConfirmed: true } });
     } else {
-      await sendBookingEmail('zaprimljen', booking, biz);
+      await sendBookingEmail('zaprimljen', booking, biz, { extra });
       await sendBookingEmail('novi_zahtjev', booking, biz, { toAdmin: true });
     }
   });
@@ -213,6 +221,11 @@ export function canClientCancel(b, rules, now = nowLocal()) {
   return left >= rules.cancelHours * 60;
 }
 
+/** Za mailove klijentici: do kada smije sama otkazati i može li još sada. */
+export function clientMailExtra(b, rules) {
+  return { cancelHours: rules.cancelHours, canCancel: canClientCancel(b, rules) };
+}
+
 const TRANSITIONS = {
   potvrdeno: ['na_cekanju', 'odbijeno', 'otkazano', 'nije_dosla'],
   odbijeno: ['na_cekanju'],
@@ -222,11 +235,13 @@ const TRANSITIONS = {
 };
 
 /** Promjena statusa (administracija ili klijentica). */
-export async function changeStatus(id, status, { notify = true, byClient = false } = {}) {
+// onlyFrom: dopušteni početni statusi (npr. link iz emaila smije potvrditi samo zahtjev na čekanju)
+export async function changeStatus(id, status, { notify = true, byClient = false, onlyFrom = null } = {}) {
   const settings = await getSettings();
   const updated = await tx(async (db) => {
     const cur = (await db.query('SELECT * FROM bookings WHERE id = $1 FOR UPDATE', [id])).rows[0];
     if (!cur) throw new UserError('Rezervacija ne postoji.', 404);
+    if (onlyFrom && !onlyFrom.includes(cur.status)) throw new UserError(`Već obrađeno – status: ${STATUS_LABEL[cur.status]}.`, 409);
     if (cur.status === status) return { booking: rowToBooking(cur), changed: false };
     if (!(TRANSITIONS[status] || []).includes(cur.status)) {
       throw new UserError(`Rezervacija je već: ${STATUS_LABEL[cur.status]}.`, 409);
@@ -253,7 +268,7 @@ export async function changeStatus(id, status, { notify = true, byClient = false
   if (changed && notify) {
     const biz = settings.business;
     inBackground(booking.id, async () => {
-      if (status === 'potvrdeno' && updated.prev !== 'nije_dosla') await sendBookingEmail('potvrden', booking, biz);
+      if (status === 'potvrdeno' && updated.prev !== 'nije_dosla') await sendBookingEmail('potvrden', booking, biz, { extra: clientMailExtra(booking, settings.rules) });
       if (status === 'odbijeno') await sendBookingEmail('odbijen', booking, biz);
       if (status === 'otkazano') {
         await sendBookingEmail('otkazan', booking, biz);
@@ -292,7 +307,7 @@ export async function updateBooking(id, input, { notify = false } = {}) {
     return { booking: rowToBooking(r.rows[0]), moved };
   });
   if (moved && notify && booking.status === 'potvrdeno') {
-    inBackground(booking.id, () => sendBookingEmail('promijenjen', booking, settings.business));
+    inBackground(booking.id, () => sendBookingEmail('promijenjen', booking, settings.business, { extra: clientMailExtra(booking, settings.rules) }));
   }
   return booking;
 }
