@@ -2,7 +2,7 @@
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const km = (n) => `${Number(n).toLocaleString('hr-HR')} KM`;
+const km = (n) => `${Number(n).toLocaleString('hr-HR')}\u00a0KM`;
 const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 const toMin = (s) => { const m = /^(\d{1,2}):(\d{2})$/.exec(s || ''); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
 
@@ -91,6 +91,7 @@ async function render() {
     else if (state.tab === 'kalendar') await viewCalendar(v);
     else if (state.tab === 'zahtjevi') await viewPending(v);
     else if (state.tab === 'klijentice') await viewClients(v);
+    else if (state.tab === 'analitika') await viewStats(v);
     else if (state.tab === 'postavke') await viewSettings(v);
   } catch (err) {
     v.innerHTML = `<p class="error">${esc(err.message)}</p>`;
@@ -244,9 +245,11 @@ function bookingModal(b) {
 // ---------- Danas ----------
 async function viewToday(v) {
   const t = state.today;
-  const [{ bookings, blocks }, pending] = await Promise.all([
+  const ym = t.slice(0, 7);
+  const [{ bookings, blocks }, pending, month] = await Promise.all([
     api(`/api/admin/bookings?from=${t}&to=${addDays(t, 1)}`),
     api('/api/admin/pending'),
+    api(`/api/admin/stats?from=${ym}-01&to=${monthEnd(ym)}`).catch(() => null),
   ]);
   const day = (date) => {
     const list = bookings.filter((b) => b.date === date && b.status !== 'odbijeno');
@@ -261,9 +264,13 @@ async function viewToday(v) {
       <div class="panel">${pending.slice(0, 5).map((b) => bookingRow(b, { showDate: true, quick: true })).join('')}</div>
       ${pending.length > 5 ? '<p><button class="btn-link" data-goto="zahtjevi">Svi zahtjevi</button></p>' : ''}` : ''}
     ${day(t)}
-    ${day(addDays(t, 1))}`;
+    ${day(addDays(t, 1))}
+    ${month ? `<button class="summary-link" data-goto="analitika">
+      <span><span class="label">${esc(MJ_NOM[Number(ym.slice(5)) - 1])}</span><br><b>${km(month.totals.revenue)}</b>
+      <small>${termina(month.totals.done)} odrađeno${month.totals.upcoming ? ` · još ${month.totals.upcoming} dogovoreno` : ''}</small></span>
+      <span class="btn-link">Analitika</span></button>` : ''}`;
   wireRows(v, [...bookings, ...pending]);
-  $('[data-goto]', v)?.addEventListener('click', () => go('zahtjevi'));
+  $$('[data-goto]', v).forEach((b) => b.addEventListener('click', () => go(b.dataset.goto)));
 }
 
 // ---------- Zahtjevi ----------
@@ -452,6 +459,183 @@ async function clientModal(id) {
       render();
     });
   });
+}
+
+// ---------- Analitika ----------
+const MJ_KR = ['sij', 'velj', 'ožu', 'tra', 'svi', 'lip', 'srp', 'kol', 'ruj', 'lis', 'stu', 'pro'];
+const pct = (x) => `${Math.round(x * 100)}\u00a0%`;
+const num = (n) => Number(n).toLocaleString('hr-HR', { maximumFractionDigits: 1 });
+const monthEnd = (ym) => { const [y, m] = ym.split('-').map(Number); return ymd(new Date(Date.UTC(y, m, 0))); };
+const shiftMonth = (ym, n) => { const [y, m] = ym.split('-').map(Number); return ymd(new Date(Date.UTC(y, m - 1 + n, 1))).slice(0, 7); };
+const monthName = (ym) => `${MJ_NOM[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}.`;
+const dayMonth = (s) => `${Number(s.slice(8, 10))}. ${MJ[Number(s.slice(5, 7)) - 1]}`;
+const termina = (n) => `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'termin' : 'termina'}`;
+
+// Razdoblje i usporedba: tekući mjesec/godina uspoređuje se s istim brojem dana prije
+function statsPeriod() {
+  const s = state.stats;
+  const t = state.today;
+  if (s.mode === 'mjesec') {
+    const p = shiftMonth(s.month, -1);
+    const current = s.month === t.slice(0, 7);
+    const prevTo = current ? [monthEnd(p), `${p}-${t.slice(8, 10)}`].sort()[0] : monthEnd(p);
+    return { from: `${s.month}-01`, to: monthEnd(s.month), prevFrom: `${p}-01`, prevTo, title: monthName(s.month),
+      prevLabel: current ? `${MJ_NOM[Number(p.slice(5, 7)) - 1]} do ${Number(t.slice(8, 10))}.` : MJ_NOM[Number(p.slice(5, 7)) - 1] };
+  }
+  if (s.mode === 'godina') {
+    const current = String(s.year) === t.slice(0, 4);
+    return { from: `${s.year}-01-01`, to: `${s.year}-12-31`, prevFrom: `${s.year - 1}-01-01`, prevTo: current ? `${s.year - 1}${t.slice(4)}` : `${s.year - 1}-12-31`,
+      title: `${s.year}.`, prevLabel: current ? `${s.year - 1}. do ${dayMonth(t)}` : `${s.year - 1}.` };
+  }
+  return { title: 'Od početka' };
+}
+
+function delta(cur, prev, label, fmt) {
+  if (prev == null) return '';
+  const change = prev ? Math.round(((cur - prev) / prev) * 100) : null;
+  const arrow = change == null || change === 0 ? '' : change > 0 ? ` · ↑\u00a0${change}\u00a0%` : ` · ↓\u00a0${Math.abs(change)}\u00a0%`;
+  return `<small>${esc(label)}: ${fmt(prev)}${arrow}</small>`;
+}
+
+function niceMax(v) {
+  if (v <= 0) return 100;
+  const p = 10 ** Math.floor(Math.log10(v));
+  return [1, 2, 2.5, 5, 10].map((k) => k * p).find((k) => k >= v);
+}
+
+function monthChart(months, from, to) {
+  const max = niceMax(Math.max(...months.map((m) => m.revenue + m.expected)));
+  const every = months.length > 18 ? 3 : 1;
+  const inRange = (m) => from && to && m.month >= from.slice(0, 7) && m.month <= to.slice(0, 7);
+  const cols = months.map((m, i) => {
+    const r = (m.revenue / max) * 100;
+    const e = (m.expected / max) * 100;
+    return `<button class="mcol${inRange(m) ? ' on' : ''}" data-i="${i}" aria-label="${esc(monthName(m.month))}">
+      ${e ? `<i class="exp end" style="height:${e}%"></i>` : ''}${r ? `<i class="rev${e ? '' : ' end'}" style="height:${r}%"></i>` : ''}</button>`;
+  }).join('');
+  const labels = months.map((m, i) => `<span class="${inRange(m) ? 'on' : ''}">${(months.length - 1 - i) % every === 0 ? MJ_KR[Number(m.month.slice(5)) - 1] : ''}</span>`).join('');
+  const hasExp = months.some((m) => m.expected);
+  return `<div class="mchart">
+      <div class="mplot">
+        ${[1, 0.5, 0].map((f) => `<div class="mgrid" style="bottom:${f * 100}%"><span>${num(max * f)}</span></div>`).join('')}
+        <div class="mcols">${cols}</div>
+      </div>
+      <div class="mlabels">${labels}</div>
+    </div>
+    <p class="readout" id="m-readout"></p>
+    <p class="legend"><span><i class="sw rev"></i>Odrađeno</span>${hasExp ? '<span><i class="sw exp"></i>Dogovoreno (još nije odrađeno)</span>' : ''}</p>
+    <details class="small"><summary>Prikaži kao tablicu</summary>
+      <table class="log"><tr><td>Mjesec</td><td>Odrađeno</td><td>Dogovoreno</td><td>Termina</td></tr>
+      ${months.slice().reverse().map((m) => `<tr><td>${esc(monthName(m.month))}</td><td>${km(m.revenue)}</td><td>${m.expected ? km(m.expected) : '–'}</td><td>${m.done}</td></tr>`).join('')}</table>
+    </details>`;
+}
+
+function hbars(rows, value, text) {
+  const max = Math.max(...rows.map(value), 1);
+  return rows.map((r) => `<div class="hbar"><div class="hbar-top"><span>${esc(r.name)}</span><span>${text(r)}</span></div>
+    <div class="hbar-track"><i style="width:${(value(r) / max) * 100}%"></i></div></div>`).join('');
+}
+
+function vbars(items) {
+  const max = Math.max(...items.map((i) => i.n), 1);
+  return `<div class="vbars">${items.map((i) => `<div class="vbar" title="${esc(i.title)}: ${termina(i.n)}">
+    <div class="vt"><i style="height:${(i.n / max) * 100}%"></i>${i.n ? `<span class="v" style="bottom:${(i.n / max) * 100}%">${i.n}</span>` : ''}</div><span class="k">${esc(i.k)}</span></div>`).join('')}</div>`;
+}
+
+async function viewStats(v) {
+  state.stats ||= { mode: 'mjesec', month: state.today.slice(0, 7), year: Number(state.today.slice(0, 4)) };
+  const s = state.stats;
+  const p = statsPeriod();
+  const qs = p.from ? `from=${p.from}&to=${p.to}&prevFrom=${p.prevFrom}&prevTo=${p.prevTo}` : '';
+  const d = await api(`/api/admin/stats?${qs}`);
+  const t = d.totals;
+  const prev = d.previous;
+  const hours = state.settings?.hours || {};
+  const openDays = [1, 2, 3, 4, 5, 6, 0];
+  const weekdays = openDays.map((dw, i) => ({ k: DANI_KR[i], title: DANI[dw], n: d.weekdays[i] })).filter((x, i) => x.n || hours[openDays[i]]);
+  const hs = Object.values(hours).filter(Boolean);
+  const firstH = Math.min(...hs.map((h) => Math.floor(toMin(h.open) / 60)), ...Object.keys(d.hourly).map(Number));
+  const lastH = Math.max(...hs.map((h) => Math.ceil(toMin(h.close) / 60) - 1), ...Object.keys(d.hourly).map(Number));
+  const hourly = [];
+  for (let h = firstH; h <= lastH; h++) hourly.push({ k: String(h), title: `${h}:00`, n: d.hourly[h] || 0 });
+  const empty = !t.done && !t.upcoming && !t.cancelled && !t.noShow && !t.pending;
+
+  v.innerHTML = `<h2>Anali<em>tika</em></h2>
+    <div class="toolbar">
+      <div class="seg">${[['mjesec', 'Mjesec'], ['godina', 'Godina'], ['sve', 'Sve']].map(([k, l]) => `<button data-mode="${k}" class="${s.mode === k ? 'active' : ''}">${l}</button>`).join('')}</div>
+      <div class="period-nav">
+        ${s.mode !== 'sve' ? '<button class="round" data-step="-1" aria-label="Prethodno">‹</button>' : ''}
+        <strong class="period">${esc(p.title)}</strong>
+        ${s.mode !== 'sve' ? '<button class="round" data-step="1" aria-label="Sljedeće">›</button>' : ''}
+      </div>
+    </div>
+    ${empty ? '<p class="small" style="color:var(--muted)">U ovom razdoblju još nema termina.</p>' : ''}
+    <div class="kpis">
+      <div class="kpi"><span class="label">Promet</span><b>${km(t.revenue)}</b>${delta(t.revenue, prev?.revenue, p.prevLabel, km)}<small>odrađeni termini${t.done ? ` · prosjek ${km(t.avg)}` : ''}</small></div>
+      <div class="kpi"><span class="label">Odrađeno</span><b>${t.done}</b>${delta(t.done, prev?.done, p.prevLabel, String)}${t.upcoming ? `<small>još ${t.upcoming} dogovoreno · ${km(t.upcomingRevenue)}</small>` : ''}</div>
+      <div class="kpi"><span class="label">Otkazano</span><b>${t.cancelled}</b><small>${pct(t.cancelRate)} rezervacija${t.cancelledLate ? ` · ${t.cancelledLate} kasno` : ''}</small></div>
+      <div class="kpi"><span class="label">Nije došla</span><b>${t.noShow}</b><small>izgubljeno ${km(t.lostRevenue)} (s otkazanima)</small></div>
+      <div class="kpi"><span class="label">Klijentice</span><b>${t.clients}</b><small>${s.mode === 'sve' ? `${t.repeatClients} dolazi više puta` : `${t.newClients} novih · ${t.returningClients} se vratilo`}</small></div>
+      <div class="kpi"><span class="label">Popunjenost</span><b>${t.occupancy == null ? '–' : pct(t.occupancy)}</b><small>${num(t.bookedHours)} od ${num(t.openHours)} h radnog vremena</small></div>
+      <div class="kpi"><span class="label">Online</span><b>${pct(t.onlineShare)}</b><small>rezervacija preko stranice${t.leadDays != null ? ` · u prosjeku ${num(t.leadDays)} dana unaprijed` : ''}</small></div>
+      <div class="kpi"><span class="label">Na čekanju</span><b>${t.pending}</b><small>${t.rejected ? `${t.rejected} odbijeno` : 'čeka vašu potvrdu'}${t.expired ? ` · ${t.expired} prošlo nepotvrđeno` : ''}</small></div>
+    </div>
+
+    <h3>Promet po mjesecima</h3>
+    <div class="panel chart-panel">${monthChart(d.months, p.from, p.to)}</div>
+
+    <div class="grid2 stats-cols">
+      <div><h3>Usluge</h3><div class="panel pad">${d.services.length ? hbars(d.services, (r) => r.revenue, (r) => `${r.count}× · ${km(r.revenue)}`) : '<div class="empty-row">Još nema odrađenih termina.</div>'}</div></div>
+      <div><h3>Otkazivanja</h3><div class="panel pad"><dl class="kv tight">
+        <dt>Otkazala klijentica</dt><dd>${t.cancelledByClient}</dd>
+        <dt>Otkazao salon</dt><dd>${t.cancelledBySalon}</dd>
+        ${t.cancelled - t.cancelledByClient - t.cancelledBySalon ? `<dt>Ranije (nije zapisano tko)</dt><dd>${t.cancelled - t.cancelledByClient - t.cancelledBySalon}</dd>` : ''}
+        <dt>Kasno (manje od ${state.settings?.rules?.cancelHours ?? 24} h)</dt><dd>${t.cancelledLate}</dd>
+        <dt>Nije došla</dt><dd>${t.noShow}${t.done + t.noShow ? ` (${pct(t.noShowRate)})` : ''}</dd>
+        <dt>Izgubljeni promet</dt><dd>${km(t.lostRevenue)}</dd>
+      </dl></div></div>
+    </div>
+
+    <div class="grid2 stats-cols">
+      <div><h3>Dani u tjednu</h3><div class="panel pad">${vbars(weekdays)}</div></div>
+      <div><h3>Sati</h3><div class="panel pad">${vbars(hourly)}</div></div>
+    </div>
+
+    <h3>Najvjernije klijentice</h3>
+    <div class="panel">${d.topClients.length ? d.topClients.map((c) => `<div class="row" ${c.client_id ? `data-cid="${c.client_id}"` : ''} style="grid-template-columns:1fr auto">
+      <div class="who">${esc(c.name)}</div><div class="what" style="text-align:right">${termina(c.visits)} · ${km(c.revenue)}</div></div>`).join('') : '<div class="empty-row">Još nema odrađenih termina u ovom razdoblju.</div>'}</div>
+
+    <h3>Vrijeme je za poruku</h3>
+    <p class="small" style="color:var(--muted);margin-top:-4px">Klijentice koje nisu bile više od 6 tjedana i nemaju novi termin.</p>
+    <div class="panel">${d.comeback.length ? d.comeback.map((c) => `<div class="row stack" data-cid="${c.id}">
+      <div><div class="who">${esc(c.name)}</div><div class="what">zadnji put ${esc(dayMonth(c.last_date))}${c.last_services ? ' · ' + esc(c.last_services) : ''} · ukupno ${termina(c.visits)}</div></div>
+      <div class="actions">${c.whatsapp ? `<a class="btn btn-small" href="${esc(c.whatsapp)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}${c.tel ? `<a class="btn btn-small btn-outline" href="${esc(c.tel)}">Nazovi</a>` : ''}</div></div>`).join('') : '<div class="empty-row">Nema nikoga za podsjetiti.</div>'}</div>
+    <p style="margin-top:24px"><a class="btn btn-small btn-outline" href="/api/admin/stats.csv${p.from ? `?from=${p.from}&to=${p.to}` : ''}" download>Preuzmi termine za Excel</a></p>
+    <p class="small" style="color:var(--muted)">Odrađeno = potvrđen termin koji je prošao. Ako klijentica nije došla, označite to u terminu pa se ne broji u promet.</p>`;
+
+  $$('[data-mode]', v).forEach((b) => b.addEventListener('click', () => { s.mode = b.dataset.mode; render(); }));
+  $$('[data-step]', v).forEach((b) => b.addEventListener('click', () => {
+    const n = Number(b.dataset.step);
+    if (s.mode === 'mjesec') s.month = shiftMonth(s.month, n);
+    else s.year += n;
+    render();
+  }));
+  $$('[data-cid]', v).forEach((r) => r.addEventListener('click', (e) => { if (!e.target.closest('a')) clientModal(Number(r.dataset.cid)); }));
+
+  // Očitanje mjeseca na dodir / prelazak mišem
+  const out = $('#m-readout', v);
+  const show = (i) => {
+    const m = d.months[i];
+    $$('.mcol', v).forEach((c) => c.classList.toggle('hover', Number(c.dataset.i) === i));
+    out.innerHTML = `<strong>${esc(monthName(m.month))}</strong> · ${km(m.revenue)} odrađeno${m.expected ? ` · ${km(m.expected)} dogovoreno` : ''} · ${termina(m.done)}${m.cancelled ? ` · ${m.cancelled} otkazano/nije došla` : ''}`;
+  };
+  const def = Math.max(0, d.months.findLastIndex((m) => p.to ? m.month <= p.to.slice(0, 7) : m.month <= state.today.slice(0, 7)));
+  $$('.mcol', v).forEach((c) => {
+    c.addEventListener('pointerenter', () => show(Number(c.dataset.i)));
+    c.addEventListener('click', () => show(Number(c.dataset.i)));
+  });
+  $('.mcols', v).addEventListener('pointerleave', () => show(def));
+  show(def);
 }
 
 // ---------- Postavke ----------
@@ -688,7 +872,7 @@ async function start() {
   if (!settings.business.address) warn.push('Upišite adresu salona u Postavkama – prikazuje se u emailovima i na karti.');
   $('#banner').innerHTML = warn.map((w) => `<div class="warn">${esc(w)}</div>`).join('');
   const tab = location.hash.slice(1);
-  go(['danas', 'kalendar', 'zahtjevi', 'klijentice', 'postavke'].includes(tab) ? tab : 'danas');
+  go(['danas', 'kalendar', 'zahtjevi', 'klijentice', 'analitika', 'postavke'].includes(tab) ? tab : 'danas');
 }
 
 document.addEventListener('visibilitychange', () => { if (!document.hidden && !$('#app').hidden) render(); });

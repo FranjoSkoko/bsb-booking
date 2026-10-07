@@ -12,6 +12,7 @@ import { baseUrl, emailConfigured, buildEmail, sendRaw, adminEmail, icsAttachmen
 import { runScheduledJobs, startScheduler } from './scheduler.js';
 import { nowLocal, toHHMM, toMin, formatDateHr, parseYmd, addDays } from './time.js';
 import { telHref, waHref } from './phone.js';
+import { computeStats, chartMonths, monthlySeries, bookingsCsv } from './stats.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, '..', 'public');
@@ -393,6 +394,67 @@ admin.put('/settings', wrap(async (req, res) => {
     await saveSetting('notify', { reminders: Boolean(notify.reminders), thanks: Boolean(notify.thanks), dailySummary: Boolean(notify.dailySummary) });
   }
   res.json(await getSettings());
+}));
+
+// ---------- Analitika ----------
+// Razdoblje: from/to (YYYY-MM-DD); bez njih – od prve do zadnje rezervacije.
+async function statsRange(query) {
+  const now = nowLocal();
+  let { from, to } = query;
+  if (!parseYmd(from) || !parseYmd(to)) {
+    const span = (await q('SELECT min(date) AS a, max(date) AS b FROM bookings')).rows[0];
+    from = parseYmd(from) ? from : span.a || now.date;
+    to = parseYmd(to) ? to : [span.b, now.date].filter(Boolean).sort().at(-1);
+  }
+  if (to < from) throw new UserError('Neispravno razdoblje.');
+  return { from, to, now };
+}
+
+admin.get('/stats', wrap(async (req, res) => {
+  const { from, to, now } = await statsRange(req.query);
+  const prev = parseYmd(req.query.prevFrom) && parseYmd(req.query.prevTo) ? { from: req.query.prevFrom, to: req.query.prevTo } : null;
+  const months = chartMonths(from, to);
+  const qFrom = [from, months[0] + '-01', prev?.from].filter(Boolean).sort()[0];
+  const qTo = [to, months.at(-1) + '-31'].sort().at(-1);
+  const settings = await getSettings();
+  const [bookings, blocks, first, comeback] = await Promise.all([
+    q('SELECT * FROM bookings WHERE date BETWEEN $1 AND $2', [qFrom, qTo]),
+    q('SELECT date, start_min, end_min FROM blocks WHERE date BETWEEN $1 AND $2', [from, to]),
+    q(`SELECT client_id, min(date) AS d FROM bookings
+       WHERE status = 'potvrdeno' AND client_id IS NOT NULL AND (date < $1 OR (date = $1 AND start_min <= $2))
+       GROUP BY client_id`, [now.date, now.min]),
+    // Klijentice koje nisu bile više od 6 tjedana i nemaju novi termin – vrijeme je za poruku
+    q(`SELECT c.id, c.name, c.phone, max(b.date) AS last_date, count(*)::int AS visits,
+         (SELECT x.services FROM bookings x WHERE x.client_id = c.id AND x.status = 'potvrdeno' AND x.date < $1
+          ORDER BY x.date DESC, x.start_min DESC LIMIT 1) AS last_services
+       FROM clients c JOIN bookings b ON b.client_id = c.id AND b.status = 'potvrdeno' AND b.date < $1
+       WHERE NOT EXISTS (SELECT 1 FROM bookings u WHERE u.client_id = c.id AND u.status IN ('potvrdeno','na_cekanju') AND u.date >= $1)
+       GROUP BY c.id HAVING max(b.date) <= $2
+       ORDER BY count(*) DESC, max(b.date) DESC LIMIT 10`, [now.date, addDays(now.date, -42)]),
+  ]);
+  const rows = bookings.rows.map(rowToBooking);
+  const firstVisit = Object.fromEntries(first.rows.map((r) => [r.client_id, r.d]));
+  const common = { bookings: rows, now, rules: settings.rules, hours: settings.hours, firstVisit };
+  const stats = computeStats({ ...common, from, to, blocks: blocks.rows });
+  res.json({
+    ...stats,
+    today: now.date,
+    previous: prev ? computeStats({ ...common, ...prev }).totals : null,
+    months: monthlySeries(rows, months, now),
+    comeback: comeback.rows.map((c) => ({
+      id: c.id, name: c.name, last_date: c.last_date, visits: c.visits,
+      last_services: (c.last_services || []).map((s) => s.name).join(' + '),
+      tel: telHref(c.phone), whatsapp: waHref(c.phone),
+    })),
+  });
+}));
+
+admin.get('/stats.csv', wrap(async (req, res) => {
+  const { from, to, now } = await statsRange(req.query);
+  const r = await q('SELECT * FROM bookings WHERE date BETWEEN $1 AND $2 ORDER BY date, start_min', [from, to]);
+  res.set('Content-Type', 'text/csv; charset=utf-8');
+  res.set('Content-Disposition', `attachment; filename="bsb-termini-${from}-${to}.csv"`);
+  res.send(bookingsCsv(r.rows.map(rowToBooking), now));
 }));
 
 admin.get('/clients', wrap(async (req, res) => {

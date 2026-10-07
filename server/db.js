@@ -80,6 +80,8 @@ CREATE TABLE IF NOT EXISTS bookings (
   reminder_sent_at TIMESTAMPTZ,
   thanks_sent_at TIMESTAMPTZ
 );
+-- Tko je otkazao: 'klijentica' ili 'salon' (za analitiku)
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancelled_by TEXT;
 CREATE INDEX IF NOT EXISTS bookings_date_idx ON bookings (date);
 CREATE INDEX IF NOT EXISTS bookings_status_idx ON bookings (status);
 CREATE TABLE IF NOT EXISTS blocks (

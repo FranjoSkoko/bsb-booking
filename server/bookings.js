@@ -40,6 +40,7 @@ export function rowToBooking(r) {
     created_at: r.created_at,
     confirmed_at: r.confirmed_at,
     cancelled_at: r.cancelled_at,
+    cancelled_by: r.cancelled_by,
     reminder_sent_at: r.reminder_sent_at,
     thanks_sent_at: r.thanks_sent_at,
     started: hasStarted(r),
@@ -257,9 +258,10 @@ export async function changeStatus(id, status, { notify = true, byClient = false
     const r = await db.query(
       `UPDATE bookings SET status = $2,
          confirmed_at = CASE WHEN $2 = 'potvrdeno' THEN COALESCE(confirmed_at, now()) ELSE confirmed_at END,
-         cancelled_at = CASE WHEN $2 IN ('otkazano','odbijeno') THEN now() ELSE cancelled_at END
+         cancelled_at = CASE WHEN $2 IN ('otkazano','odbijeno') THEN now() ELSE cancelled_at END,
+         cancelled_by = CASE WHEN $2 IN ('otkazano','odbijeno') THEN $3 ELSE cancelled_by END
        WHERE id = $1 RETURNING *`,
-      [id, status]
+      [id, status, byClient ? 'klijentica' : 'salon']
     );
     return { booking: rowToBooking(r.rows[0]), changed: true, prev: cur.status };
   });
