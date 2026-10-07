@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { baseUrl } from './config.js';
+import { baseUrl, isHttps } from './config.js';
 
 function secret() {
   const s = process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD;
@@ -34,7 +34,7 @@ export function sessionCookie(res) {
   res.cookie(COOKIE, value, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production' || Boolean(process.env.REPLIT_DOMAINS),
+    secure: isHttps(),
     maxAge: SESSION_DAYS * 86400000,
     path: '/',
   });
