@@ -8,7 +8,7 @@ Web aplikacija za rezervaciju termina (makeup i obrve, Široki Brijeg). Klijenti
 - Stranica s cjenikom, O meni, radovima (galerija), savjetima za pripremu i kontaktom s kartom.
 - Rezervacija u 3 koraka: usluga (može i više usluga zaredom, s ukupnom cijenom i trajanjem) → datum i slobodan termin → podaci i privola.
 - Termini: šminkanje na puni sat (60 min), obrve i lice svakih 30 min, pon–sub 09:00–19:00, najranije 2 h i najkasnije 60 dana unaprijed. Nema dvostrukih rezervacija.
-- Nakon slanja: potvrda u aplikaciji, email, stranica „Moja rezervacija” (status, dodavanje u kalendar, otkazivanje do 24 h prije).
+- Nakon slanja: potvrda u aplikaciji, email, stranica „Moja rezervacija” (status, dodavanje u kalendar, otkazivanje do 24 h prije; kasnije gumbi Nazovite i WhatsApp).
 - Aplikacija se može instalirati na mobitel (PWA) i pamti podatke klijentice za sljedeću rezervaciju.
 
 **Za Barbaru (`/admin`)**
@@ -86,7 +86,7 @@ Gmail ne dopušta slanje s običnom lozinkom. Na računu barbaraskokobeauty@gmai
 2. Otvorite <https://myaccount.google.com/apppasswords>, napravite lozinku s imenom „BSB rezervacije”.
 3. Dobivenih 16 znakova (bez razmaka) upišite kao `SMTP_PASS`.
 
-Nakon toga u administraciji (Postavke → Email) kliknite **Pošalji probne emailove**.
+Nakon toga u administraciji (Postavke → Email) kliknite **Pošalji probne emailove**. Linkovi u probnim emailovima otvaraju primjer rezervacije (sutra u 10:00), a Potvrdi/Odbij samo stranicu „Ovo je probni email”.
 
 ### Ako koristite Autoscale umjesto Reserved VM
 Autoscale „spava” kad nema posjeta pa podsjetnici kasne. Tada dodajte tajnu `CRON_SECRET` i na besplatnom servisu (npr. cron-job.org) svakih 10 minuta pozivajte `https://VAŠA-ADRESA/api/cron?key=CRON_SECRET`.

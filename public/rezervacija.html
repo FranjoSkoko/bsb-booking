@@ -16,21 +16,46 @@
   </main>
   <script type="module">
     const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    const token = decodeURIComponent(location.pathname.split('/').pop());
+    // filter(Boolean): link radi i ako mu se na kraj doda "/"
+    const token = decodeURIComponent(location.pathname.split('/').filter(Boolean).pop() || '');
     const card = document.getElementById('card');
     const logo = '<img src="/assets/logo/BSB_Znak_u_krugu_tamni.svg" alt="" width="72" height="72">';
+    const offline = `${logo}<h1>Nema veze</h1><p>Provjerite internet i pokušajte ponovno.</p><p><button class="btn" onclick="location.reload()">Pokušaj ponovno</button></p>`;
 
     async function load() {
-      const res = await fetch(`/api/bookings/${encodeURIComponent(token)}`);
-      const b = await res.json();
+      let res, b;
+      try {
+        res = await fetch(`/api/bookings/${encodeURIComponent(token)}`);
+        b = await res.json();
+      } catch { card.innerHTML = offline; return; }
       if (!res.ok) { card.innerHTML = `${logo}<h1>Rezervacija nije pronađena</h1><p><a class="btn" href="/#rezervacija">Rezervirajte termin</a></p>`; return; }
       render(b);
     }
 
+    // Poziv i WhatsApp – podaci iz postavki salona
+    const contactButtons = (c) => `<div class="contact-actions">
+        <a class="btn" href="${esc(c.tel)}">Nazovite Barbaru</a>
+        ${c.whatsapp ? `<a class="btn btn-outline" href="${esc(c.whatsapp)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
+      </div>`;
+
     function render(b, message = '') {
-      const active = ['na_cekanju', 'potvrdeno'].includes(b.status);
+      const active = ['na_cekanju', 'potvrdeno'].includes(b.status) && !b.started;
+      const c = b.contact;
+      let manage = '';
+      if (active && b.can_cancel) {
+        manage = `<p><button class="btn btn-outline" id="cancel">Otkaži termin</button></p>
+          <p class="notice">Online otkazivanje moguće je najkasnije ${b.cancel_hours} h prije termina.
+          Za promjenu termina: <a href="${esc(c.tel)}">${esc(c.phone)}</a>${c.whatsapp ? ` · <a href="${esc(c.whatsapp)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}</p>`;
+      } else if (active) {
+        manage = `<div class="late-box">
+            <p><strong>Ovaj termin više se ne može otkazati putem linka</strong> jer je do njega manje od ${b.cancel_hours} h.</p>
+            <p>Ako ne možete doći ili želite promjenu, javite se Barbari:</p>
+            ${contactButtons(c)}
+          </div>`;
+      }
       card.innerHTML = `${logo}
         <p class="label">Moja rezervacija</p>
+        ${b.demo ? '<p class="notice">Ovo je primjer iz probnog emaila. Prava rezervacija izgleda ovako.</p>' : ''}
         <h1>${esc(b.name.split(' ')[0])}, <em>vaš termin</em></h1>
         <p class="status-pill st-${b.status}">${esc(b.status_label)}</p>
         <div class="action-info">
@@ -39,21 +64,31 @@
           <div>${b.time} – ${b.end} · ${b.duration} min</div>
           <div>${Number(b.total_price).toLocaleString('hr-HR')} KM · plaćanje u salonu</div>
         </div>
-        ${message ? `<p>${esc(message)}</p>` : ''}
-        ${b.status === 'na_cekanju' ? '<p class="notice">Barbara će vam potvrditi termin emailom.</p>' : ''}
-        ${active ? `<p><a class="btn btn-outline" href="/api/bookings/${encodeURIComponent(token)}/ics">Dodaj u kalendar</a></p>` : ''}
-        ${b.can_cancel ? '<p><button class="btn-link" id="cancel">Otkaži termin</button></p>'
-          : active ? `<p class="notice">Termin se putem linka može otkazati najkasnije ${b.cancel_hours} h prije. Za promjene se javite na +387 63 674 074.</p>` : ''}
+        ${message ? `<p class="message">${esc(message)}</p>` : ''}
+        ${active && b.status === 'na_cekanju' ? '<p class="notice">Barbara će vam potvrditi termin emailom.</p>' : ''}
+        ${active && b.status === 'potvrdeno' ? `<p><a class="btn btn-outline" href="/api/bookings/${encodeURIComponent(token)}/ics">Dodaj u kalendar</a></p>` : ''}
+        ${manage}
         ${!active ? '<p><a class="btn" href="/#rezervacija">Rezervirajte novi termin</a></p>' : ''}
         <p><a href="/">Barbara Skoko Beauty</a></p>
         <p class="error" id="err" hidden></p>`;
-      const c = document.getElementById('cancel');
-      if (c) c.addEventListener('click', async () => {
+      const btn = document.getElementById('cancel');
+      if (btn) btn.addEventListener('click', async () => {
         if (!confirm('Želite li sigurno otkazati termin?')) return;
-        c.disabled = true;
-        const res = await fetch(`/api/bookings/${encodeURIComponent(token)}/cancel`, { method: 'POST' });
-        const data = await res.json();
-        if (!res.ok) { const e = document.getElementById('err'); e.textContent = data.error; e.hidden = false; c.disabled = false; return; }
+        btn.disabled = true;
+        const err = document.getElementById('err');
+        let res, data;
+        try {
+          res = await fetch(`/api/bookings/${encodeURIComponent(token)}/cancel`, { method: 'POST' });
+          data = await res.json();
+        } catch {
+          err.textContent = 'Otkazivanje nije uspjelo. Provjerite internet i pokušajte ponovno.';
+          err.hidden = false;
+          btn.disabled = false;
+          return;
+        }
+        // Server uz odbijenicu šalje i stvarno stanje (npr. termin je već otkazan u drugoj kartici)
+        if (!res.ok && data.booking) return render(data.booking, data.error);
+        if (!res.ok) { err.textContent = data.error; err.hidden = false; btn.disabled = false; return; }
         render(data, 'Termin je otkazan. Poslali smo vam potvrdu emailom.');
       });
     }

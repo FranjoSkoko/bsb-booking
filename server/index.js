@@ -360,7 +360,7 @@ admin.put('/settings', wrap(async (req, res) => {
     // Linkovi na stranici i u mailovima moraju ostati ispravni kad Barbara promijeni ove podatke
     if ('instagram' in business && !('instagramUrl' in business)) {
       const handle = next.instagram.replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/^@/, '').replace(/[/?#].*$/, '');
-      if (handle) next.instagramUrl = `https://www.instagram.com/${handle}/`;
+      if (handle) Object.assign(next, { instagram: `@${handle}`, instagramUrl: `https://www.instagram.com/${handle}/` });
     }
     if (next.whatsapp && !/^https?:\/\//i.test(next.whatsapp)) next.whatsapp = waHref(next.whatsapp);
     if (next.reviewUrl && !/^https?:\/\//i.test(next.reviewUrl)) throw new UserError('Link za recenzije mora počinjati s https://');

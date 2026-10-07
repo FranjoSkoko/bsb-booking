@@ -270,3 +270,11 @@ footer.site-footer a { color: var(--rose-light); }
 }
 .map-wrap { display: block; position: relative; }
 .map-wrap .map { pointer-events: none; display: block; }
+
+/* Moja rezervacija: termin koji se više ne može otkazati putem linka */
+.late-box { border: 1px solid var(--line); background: var(--cream); padding: 18px 16px; margin: 20px 0; }
+.late-box p { margin: 0 0 10px; }
+.contact-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+.action-card .message { font-weight: 400; }
+/* Linkovi na #rezervacija, #kontakt … ne završe ispod zaglavlja */
+section[id] { scroll-margin-top: 72px; }
