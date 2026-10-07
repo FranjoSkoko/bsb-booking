@@ -1102,7 +1102,7 @@ async function viewSettings(v) {
 
     <h3>Radovi</h3>
     <div class="panel" style="padding:16px 20px">
-      <p class="small">Fotografije radova prikazuju se u sekciji „Radovi” na stranici. Dok ovdje nema nijedne, ta se sekcija ne prikazuje.</p>
+      <p class="small">Na stranici su već sekcije „Obrve – prije i poslije” i „Šminka i lookovi” s osam fotografija. Fotografije koje dodate ovdje prikazuju se uz lookove.</p>
       ${works.length ? `<div class="thumbs" id="thumbs">${works.map((g) => `<figure><img src="/api/gallery/${g.id}" alt=""><button data-del-img="${g.id}" aria-label="Obriši">×</button></figure>`).join('')}</div>` : ''}
       <div class="toolbar" style="margin-top:12px">
         <label class="btn btn-small btn-outline">Dodaj radove<input type="file" id="img-input" accept="image/*" multiple hidden></label>

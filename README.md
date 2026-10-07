@@ -5,7 +5,8 @@ Web aplikacija za rezervaciju termina (makeup i obrve, Široki Brijeg). Klijenti
 ## Što aplikacija radi
 
 **Za klijentice**
-- Stranica s cjenikom, O meni, radovima (galerija), savjetima za pripremu i kontaktom s kartom.
+- Stranica s O meni, radovima (obrve prije i poslije, šminka i lookovi, s povećanjem fotografija), savjetima za pripremu i kontaktom s kartom. Cjenik je dodatna sekcija koja se uključuje u Postavkama.
+- Fotografije radova su u `public/assets/radovi/`, a popis je na vrhu dijela „radovi” u `public/js/booking.js` (`BROWS`, `LOOKS`).
 - Rezervacija u 3 koraka: usluga (može i više usluga zaredom, s ukupnom cijenom i trajanjem) → datum i slobodan termin → podaci i privola.
 - Termini: šminkanje na puni sat (60 min), obrve i lice svakih 30 min, pon–sub 09:00–19:00, najranije 2 h i najkasnije 60 dana unaprijed. Nema dvostrukih rezervacija.
 - Nakon slanja: potvrda u aplikaciji, email, stranica „Moja rezervacija” (status, dodavanje u kalendar, otkazivanje do 24 h prije; kasnije gumbi Nazovite i WhatsApp).
