@@ -362,6 +362,11 @@ function renderContact() {
     <li>${icon('info')}<a href="mailto:${esc(b.email)}">${esc(b.email)}</a></li>
     <li>${icon('srce')}<a href="${esc(b.instagramUrl)}" target="_blank" rel="noopener">${esc(b.instagram)}</a></li>
     <li>${icon('lokacija')}<a id="loc-link" target="_blank" rel="noopener">${esc([b.address, b.city].filter(Boolean).join(', '))}</a></li>`;
+  const ft = { instagram: b.instagramUrl, whatsapp: b.whatsapp, phone: tel && `tel:${tel}` };
+  for (const [k, href] of Object.entries(ft)) {
+    const a = $(`#ft-${k}`);
+    if (href) a.href = href; else a.hidden = true;
+  }
   const order = [1, 2, 3, 4, 5, 6, 0];
   $('#hours').innerHTML = order.map((d) => {
     const h = state.config.hours[d];
