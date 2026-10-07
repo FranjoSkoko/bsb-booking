@@ -396,49 +396,57 @@ const BROWS = [
   { before: 'obrve-2-prije.jpg', after: 'obrve-2-poslije.jpg' },
 ];
 const LOOKS = ['look-1.jpg', 'look-2.jpg', 'look-3.jpg', 'look-4.jpg'];
-let lbItems = [];
+// Svaka sekcija ima svoj niz fotografija i svoje brojanje (1 / 2, 1 / 4 …)
+let lbGroups = {};
+let lbGroup = '';
 let lbIndex = 0;
 
-function workHtml(item, i, tag = '') {
-  return `<button type="button" class="work" data-work="${i}" aria-label="Povećaj: ${esc(item.alt)}">
+function workHtml(group, i, tag = '') {
+  const item = lbGroups[group][i];
+  return `<button type="button" class="work" data-work="${group}:${i}" aria-label="Povećaj: ${esc(item.alt)}">
     <img src="${esc(item.src)}" alt="${esc(item.alt)}" loading="lazy">${tag}</button>`;
 }
 
 function renderWorks(uploads = []) {
-  lbItems = [];
-  const add = (item) => lbItems.push(item) - 1;
-  $('#ba-list').innerHTML = BROWS.map((p) => {
-    const b = add({ src: W + p.before, alt: 'Obrve prije oblikovanja', cap: 'Prije' });
-    const a = add({ src: W + p.after, alt: 'Obrve nakon oblikovanja', cap: 'Poslije' });
-    return `<div class="ba">${workHtml(lbItems[b], b, '<span class="tag">Prije</span>')}${workHtml(lbItems[a], a, '<span class="tag after">Poslije</span>')}</div>`;
-  }).join('');
-  const looks = [...LOOKS.map((f, n) => ({ src: W + f, alt: `Šminka – look ${n + 1}`, cap: '' })), ...uploads];
-  $('#looks').innerHTML = looks.map((it) => workHtml(it, add(it))).join('');
+  lbGroups = {
+    obrve: BROWS.flatMap((p) => [
+      { src: W + p.before, alt: 'Obrve prije oblikovanja', cap: 'Prije' },
+      { src: W + p.after, alt: 'Obrve nakon oblikovanja', cap: 'Poslije' },
+    ]),
+    lookovi: [...LOOKS.map((f, n) => ({ src: W + f, alt: `Šminka – look ${n + 1}`, cap: '' })), ...uploads],
+  };
+  $('#ba-list').innerHTML = BROWS.map((p, n) => `<div class="ba">${workHtml('obrve', 2 * n, '<span class="tag">Prije</span>')}${workHtml('obrve', 2 * n + 1, '<span class="tag after">Poslije</span>')}</div>`).join('');
+  $('#looks').innerHTML = lbGroups.lookovi.map((_, i) => workHtml('lookovi', i)).join('');
 }
 
-function openLightbox(i) {
+function openLightbox(group, i) {
   const dlg = $('#lightbox');
-  lbIndex = (i + lbItems.length) % lbItems.length;
-  const it = lbItems[lbIndex];
+  const list = lbGroups[group];
+  lbGroup = group;
+  lbIndex = (i + list.length) % list.length;
+  const it = list[lbIndex];
   Object.assign($('#lb-img'), { src: it.src, alt: it.alt });
-  $('#lb-cap').textContent = `${it.cap ? `${it.cap} · ` : ''}${lbIndex + 1} / ${lbItems.length}`;
+  $('#lb-cap').textContent = `${it.cap ? `${it.cap} · ` : ''}${lbIndex + 1} / ${list.length}`;
   if (!dlg.open) dlg.showModal();
 }
+const lbStep = (d) => openLightbox(lbGroup, lbIndex + d);
 
 function setupLightbox() {
   const dlg = $('#lightbox');
   document.addEventListener('click', (e) => {
     const w = e.target.closest('[data-work]');
-    if (w) openLightbox(Number(w.dataset.work));
+    if (!w) return;
+    const [group, i] = w.dataset.work.split(':');
+    openLightbox(group, Number(i));
   });
   dlg.addEventListener('click', (e) => {
     const b = e.target.closest('[data-lb]');
-    if (b) return b.dataset.lb === 'close' ? dlg.close() : openLightbox(lbIndex + Number(b.dataset.lb));
+    if (b) return b.dataset.lb === 'close' ? dlg.close() : lbStep(Number(b.dataset.lb));
     if (e.target.tagName !== 'IMG') dlg.close(); // klik pokraj slike zatvara
   });
   dlg.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowLeft') openLightbox(lbIndex - 1);
-    if (e.key === 'ArrowRight') openLightbox(lbIndex + 1);
+    if (e.key === 'ArrowLeft') lbStep(-1);
+    if (e.key === 'ArrowRight') lbStep(1);
   });
   let x0 = null;
   dlg.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; }, { passive: true });
@@ -446,7 +454,7 @@ function setupLightbox() {
     if (x0 === null) return;
     const dx = e.changedTouches[0].clientX - x0;
     x0 = null;
-    if (Math.abs(dx) > 40) openLightbox(lbIndex + (dx < 0 ? 1 : -1));
+    if (Math.abs(dx) > 40) lbStep(dx < 0 ? 1 : -1);
   });
 }
 
