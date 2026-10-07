@@ -393,7 +393,6 @@ function renderGallery() {
 // ---------- radovi: obrve prije i poslije, šminka i lookovi ----------
 const W = '/assets/radovi/';
 const BROWS = [
-  { before: 'obrve-1-prije.jpg', after: 'obrve-1-poslije.jpg' },
   { before: 'obrve-2-prije.jpg', after: 'obrve-2-poslije.jpg' },
 ];
 const LOOKS = ['look-1.jpg', 'look-2.jpg', 'look-3.jpg', 'look-4.jpg'];
@@ -408,9 +407,9 @@ function workHtml(item, i, tag = '') {
 function renderWorks(uploads = []) {
   lbItems = [];
   const add = (item) => lbItems.push(item) - 1;
-  $('#ba-list').innerHTML = BROWS.map((p, n) => {
-    const b = add({ src: W + p.before, alt: `Obrve prije oblikovanja (${n + 1})`, cap: 'Prije' });
-    const a = add({ src: W + p.after, alt: `Obrve nakon oblikovanja (${n + 1})`, cap: 'Poslije' });
+  $('#ba-list').innerHTML = BROWS.map((p) => {
+    const b = add({ src: W + p.before, alt: 'Obrve prije oblikovanja', cap: 'Prije' });
+    const a = add({ src: W + p.after, alt: 'Obrve nakon oblikovanja', cap: 'Poslije' });
     return `<div class="ba">${workHtml(lbItems[b], b, '<span class="tag">Prije</span>')}${workHtml(lbItems[a], a, '<span class="tag after">Poslije</span>')}</div>`;
   }).join('');
   const looks = [...LOOKS.map((f, n) => ({ src: W + f, alt: `Šminka – look ${n + 1}`, cap: '' })), ...uploads];
