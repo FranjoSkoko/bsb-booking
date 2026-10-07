@@ -279,17 +279,19 @@ function renderContact() {
     <li>${icon('poruka')}<a href="${esc(b.whatsapp)}" target="_blank" rel="noopener">WhatsApp</a></li>
     <li>${icon('info')}<a href="mailto:${esc(b.email)}">${esc(b.email)}</a></li>
     <li>${icon('srce')}<a href="${esc(b.instagramUrl)}" target="_blank" rel="noopener">${esc(b.instagram)}</a></li>
-    <li>${icon('lokacija')}<span>${esc([b.address, b.city].filter(Boolean).join(', '))}</span></li>`;
+    <li>${icon('lokacija')}<a id="loc-link" target="_blank" rel="noopener">${esc([b.address, b.city].filter(Boolean).join(', '))}</a></li>`;
   const order = [1, 2, 3, 4, 5, 6, 0];
   $('#hours').innerHTML = order.map((d) => {
     const h = state.config.hours[d];
     return `<tr><td>${DANI[d]}</td><td>${h ? `${h.open} – ${h.close}` : 'zatvoreno'}</td></tr>`;
   }).join('');
   const place = b.mapQuery || [b.address, b.city, 'Bosna i Hercegovina'].filter(Boolean).join(', ');
+  const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(place)}`;
   $('#map').src = `https://maps.google.com/maps?q=${encodeURIComponent(place)}&z=17&hl=hr&output=embed`;
-  $('#address-line').innerHTML = `${esc([b.address, b.city].filter(Boolean).join(', '))}<br>
-    <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}" target="_blank" rel="noopener">Otvori u Google kartama</a> ·
-    <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(place)}" target="_blank" rel="noopener">Upute do salona</a>`;
+  $('#map-link').href = route;
+  $('#address-line').innerHTML = `<strong>${esc([b.address, b.city].filter(Boolean).join(', '))}</strong>`;
+  $('#route-btn').href = route;
+  $('#loc-link').href = route;
 }
 
 function renderGallery() {

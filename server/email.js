@@ -33,7 +33,7 @@ const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;
 
 export function mapsUrl(business) {
   const q = business.mapQuery || [business.address, business.city].filter(Boolean).join(', ');
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(q)}`;
 }
 
 const clean = (s) => String(s ?? '').replace(/[<>]/g, '');

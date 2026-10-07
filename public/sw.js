@@ -1,6 +1,6 @@
 // Jednostavan service worker: aplikacija se može instalirati na mobitel,
 // a stil, fontovi i logotipi učitavaju se iz memorije uređaja.
-const CACHE = 'bsb-v1';
+const CACHE = 'bsb-v2';
 const SHELL = ['/css/style.css', '/js/booking.js', '/assets/logo/BSB_Horizontalni_logo_tamni.svg', '/assets/logo/BSB_Znak_u_krugu_tamni.svg'];
 
 self.addEventListener('install', (e) => {
