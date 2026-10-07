@@ -138,8 +138,16 @@ section { padding: clamp(64px, 10vw, 112px) 0; }
 .tips span { color: var(--muted); }
 
 /* Kontakt */
-.contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(32px, 6vw, 72px); }
-.contact-list { list-style: none; margin: 0; padding: 0; }
+.contact-grid {
+  display: grid; grid-template-columns: 1fr 1fr; column-gap: clamp(32px, 6vw, 72px);
+  grid-template-areas: "head ." "list map" "hours route";
+}
+.contact-head { grid-area: head; }
+.contact-hours { grid-area: hours; }
+.contact-hours h3 { margin-top: 32px; }
+.contact-grid .map-wrap { grid-area: map; }
+.route-btn { grid-area: route; justify-self: start; align-self: start; margin-top: 26px; }
+.contact-list { grid-area: list; list-style: none; margin: 0; padding: 0; }
 .contact-list li { display: flex; gap: 16px; align-items: center; padding: 14px 0; border-bottom: 1px solid rgba(243, 237, 231, .18); }
 .contact-list img { width: 28px; height: 28px; object-fit: contain; flex: none; }
 .contact-list a { text-decoration: none; }
@@ -147,8 +155,13 @@ section { padding: clamp(64px, 10vw, 112px) 0; }
 .hours { width: 100%; border-collapse: collapse; margin-top: 8px; }
 .hours td { padding: 6px 0; border-bottom: 1px solid rgba(243, 237, 231, .18); }
 .hours td:last-child { text-align: right; }
-.map { width: 100%; aspect-ratio: 4 / 3; border: 0; filter: grayscale(.5) sepia(.15); }
-@media (max-width: 760px) { .contact-grid { grid-template-columns: 1fr; } }
+.map { width: 100%; height: 100%; min-height: 240px; border: 0; filter: grayscale(.5) sepia(.15); }
+@media (max-width: 760px) {
+  .contact-grid { grid-template-columns: 1fr; grid-template-areas: "head" "list" "hours" "map" "route"; }
+  .contact-grid .map-wrap { margin-top: 40px; }
+  .map { height: auto; aspect-ratio: 4 / 3; }
+  .route-btn { margin-top: 16px; }
+}
 
 footer.site-footer { background: var(--ink); color: var(--rose-light); text-align: center; padding: 28px var(--pad) 40px; font-size: 12px; letter-spacing: .12em; border-top: 1px solid rgba(243, 237, 231, .18); }
 footer.site-footer a { color: var(--rose-light); }

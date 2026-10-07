@@ -154,20 +154,19 @@
 
     <section id="kontakt" class="bg-dark on-dark">
       <div class="wrap contact-grid">
-        <div>
+        <div class="contact-head">
           <span class="label">Kontakt</span>
           <h2>Vidimo <em>se uskoro</em></h2>
-          <ul class="contact-list" id="contact-list"></ul>
-          <h3 style="margin-top:32px">Radno vrijeme</h3>
+        </div>
+        <ul class="contact-list" id="contact-list"></ul>
+        <a class="map-wrap" id="map-link" target="_blank" rel="noopener" aria-label="Otvori upute do salona u Google kartama">
+          <iframe class="map" id="map" title="Lokacija salona na karti" loading="lazy" referrerpolicy="no-referrer-when-downgrade" tabindex="-1"></iframe>
+        </a>
+        <div class="contact-hours">
+          <h3>Radno vrijeme</h3>
           <table class="hours" id="hours"></table>
         </div>
-        <div>
-          <a class="map-wrap" id="map-link" target="_blank" rel="noopener" aria-label="Otvori upute do salona u Google kartama">
-            <iframe class="map" id="map" title="Lokacija salona na karti" loading="lazy" referrerpolicy="no-referrer-when-downgrade" tabindex="-1"></iframe>
-          </a>
-          <p style="margin:16px 0 12px" id="address-line"></p>
-          <a class="btn" id="route-btn" target="_blank" rel="noopener">Upute do salona</a>
-        </div>
+        <a class="btn route-btn" id="route-btn" target="_blank" rel="noopener">Upute do salona</a>
       </div>
     </section>
   </main>
