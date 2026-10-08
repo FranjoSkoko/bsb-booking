@@ -508,7 +508,7 @@ function newBookingModal() {
       </div>
       <div class="field compact"><label>Ime i prezime</label><input name="name" required autocomplete="off"></div>
       <div class="grid2">
-        <div class="field compact"><label>Mobitel</label><input name="phone" type="tel"></div>
+        <div class="field compact"><label>Mobitel (nije obavezno)</label><input name="phone" type="tel"></div>
         <div class="field compact"><label>Email (nije obavezno)</label><input name="email" type="email"></div>
       </div>
       <div class="field compact"><label>Napomena</label><input name="note"></div>

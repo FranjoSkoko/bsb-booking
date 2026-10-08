@@ -1,5 +1,6 @@
 import pg from 'pg';
 import { DEFAULT_SERVICES, DEFAULT_SETTINGS } from './defaults.js';
+import { phoneDigits } from './phone.js';
 
 if (!process.env.DATABASE_URL) {
   console.error('\n[BSB] Nedostaje DATABASE_URL. Dodajte PostgreSQL bazu i varijablu DATABASE_URL (na Railwayu: ${{Postgres.DATABASE_URL}}).\n');
@@ -212,6 +213,31 @@ export async function initDb() {
   const old = { open: '09:00', close: '19:00' };
   const oldHours = JSON.stringify({ 0: null, 1: old, 2: old, 3: old, 4: old, 5: old, 6: old });
   await q(`UPDATE settings SET value = $1 WHERE key = 'hours' AND value = $2::jsonb`, [JSON.stringify(DEFAULT_SETTINGS.hours), oldHours]);
+  await fixAdminClients();
+}
+
+/**
+ * Ručno upisani termini s Barbarinim brojem spajali su se u jednu klijenticu (po broju).
+ * Makni njen broj s termina i klijentica, a svaki takav termin veži uz klijenticu s istim imenom.
+ */
+async function fixAdminClients() {
+  const own = phoneDigits((await getSettings()).business.phone);
+  if (own) {
+    for (const table of ['bookings', 'clients']) {
+      const { rows } = await q(`SELECT id, phone FROM ${table} WHERE phone <> ''${table === 'bookings' ? " AND source = 'admin'" : ''}`);
+      const ids = rows.filter((r) => phoneDigits(r.phone) === own).map((r) => r.id);
+      if (ids.length) await q(`UPDATE ${table} SET phone = '' WHERE id = ANY($1)`, [ids]);
+    }
+  }
+  const { rows } = await q(
+    `SELECT b.id, b.name FROM bookings b JOIN clients c ON c.id = b.client_id
+     WHERE b.source = 'admin' AND b.name <> 'Obrisano' AND lower(b.name) <> lower(c.name)`
+  );
+  for (const b of rows) {
+    const found = (await q('SELECT id FROM clients WHERE lower(name) = lower($1) ORDER BY id LIMIT 1', [b.name])).rows[0];
+    const id = found ? found.id : (await q('INSERT INTO clients (name) VALUES ($1) RETURNING id', [b.name])).rows[0].id;
+    await q('UPDATE bookings SET client_id = $2 WHERE id = $1', [b.id, id]);
+  }
 }
 
 export async function getSettings() {
