@@ -56,6 +56,18 @@
     <section id="o-meni" class="bg-sand">
       <div class="wrap about">
         <div class="photo" id="about-photo"></div>
+        <script>
+          // Fotografija se prikaže odmah, bez čekanja podataka sa servera (inače kod osvježavanja na trenutak nestane).
+          // booking.js je zamijeni samo ako je Barbara u adminu postavila drugu (ABOUT_DEFAULT u booking.js je ista adresa).
+          (function () {
+            var src = '/assets/photos/barbara-o-meni.jpg?v=2';
+            try { var saved = JSON.parse(localStorage.getItem('bsb_about')); if (typeof saved === 'string') src = saved; } catch (e) {}
+            var img = new Image(1080, 1350);
+            img.alt = 'Barbara Skoko';
+            img.src = src;
+            document.getElementById('about-photo').appendChild(img);
+          })();
+        </script>
         <div>
           <span class="label">O meni</span>
           <h2>Bok, ja sam <em>Barbara.</em></h2>
