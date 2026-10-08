@@ -211,3 +211,6 @@ details.more summary { font-size: 14px; }
 
 .row.block.open { background: #F1F6EF; }
 .row.block.open .who { color: #3F6B45; }
+
+.admin-logo { display: inline-flex; -webkit-tap-highlight-color: transparent; }
+.admin-logo:active { opacity: .6; }
