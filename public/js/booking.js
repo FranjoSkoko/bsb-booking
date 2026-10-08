@@ -362,23 +362,13 @@ function renderContact() {
     <li>${icon('info')}<a href="mailto:${esc(b.email)}">${esc(b.email)}</a></li>
     <li>${icon('srce')}<a href="${esc(b.instagramUrl)}" target="_blank" rel="noopener">${esc(b.instagram)}</a></li>
     <li>${icon('lokacija')}<a id="loc-link" data-route target="_blank" rel="noopener">${esc([b.address, b.city].filter(Boolean).join(', '))}</a></li>`;
-  // Uzastopni dani s istim radnim vremenom u jednom redu (npr. „Ponedjeljak – Petak”), oba dijela dana u istom redu
+  // Svaki dan u svom redu; jutarnji i večernji dio u istom retku
   const order = [1, 2, 3, 4, 5, 6, 0];
   const t = (m) => m.replace(/^0/, '');
   const span = (h) => (!h ? 'zatvoreno' : h.breakFrom
     ? `${t(h.open)}–${t(h.breakFrom)} <span class="sep">i</span> ${t(h.breakTo)}–${t(h.close)}`
     : `${t(h.open)}–${t(h.close)}`);
-  const groups = [];
-  for (const d of order) {
-    const text = span(state.config.hours[d]);
-    const last = groups.at(-1);
-    if (last && last.text === text) last.to = d;
-    else groups.push({ from: d, to: d, text });
-  }
-  const kr = (d) => DANI_KRATKO[(d + 6) % 7];
-  $('#hours').innerHTML = groups.map((g) => (g.to === g.from
-    ? `<tr><td>${DANI[g.from]}</td><td>${g.text}</td></tr>`
-    : `<tr><td><span class="long">${DANI[g.from]} – ${DANI[g.to]}</span><span class="short">${kr(g.from)} – ${kr(g.to)}</span></td><td>${g.text}</td></tr>`)).join('');
+  $('#hours').innerHTML = order.map((d) => `<tr><td>${DANI[d]}</td><td>${span(state.config.hours[d])}</td></tr>`).join('');
   const place = b.mapQuery || [b.address, b.city, 'Bosna i Hercegovina'].filter(Boolean).join(', ');
   const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(place)}`;
   $('#map').src = `https://maps.google.com/maps?q=${encodeURIComponent(place)}&z=17&hl=hr&output=embed`;
