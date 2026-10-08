@@ -322,6 +322,9 @@ footer.site-footer p:last-child { margin: 0; }
 }
 .map-wrap { display: block; position: relative; }
 .map-wrap .map { pointer-events: none; display: block; }
+.map-wrap { background: #ebe6e1; overflow: hidden; }
+.map-wrap .map { pointer-events: none; display: block; opacity: 0; transition: opacity .4s; }
+.map-wrap .map.ready { opacity: 1; }
 
 /* Moja rezervacija: termin koji se više ne može otkazati putem linka */
 .late-box { border: 1px solid var(--line); background: var(--cream); padding: 18px 16px; margin: 20px 0; }
