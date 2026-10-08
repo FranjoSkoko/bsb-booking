@@ -484,6 +484,9 @@ admin.get('/stats', wrap(async (req, res) => {
        ORDER BY count(*) DESC, max(b.date) DESC LIMIT 10`, [now.date, addDays(now.date, -42)]),
   ]);
   const rows = bookings.rows.map(rowToBooking);
+  const ahead = (await q(`SELECT * FROM bookings WHERE status = 'potvrdeno' AND date >= $1 ORDER BY date, start_min`, [now.date]))
+    .rows.map(rowToBooking).filter((b) => !b.started);
+  const weekEnd = addDays(now.date, (7 - new Date(`${now.date}T12:00:00Z`).getUTCDay()) % 7);
   const firstVisit = Object.fromEntries(first.rows.map((r) => [r.client_id, r.d]));
   const common = { bookings: rows, now, rules: settings.rules, hours: settings.hours, firstVisit };
   const stats = computeStats({ ...common, from, to, blocks: blocks.rows });
@@ -491,6 +494,13 @@ admin.get('/stats', wrap(async (req, res) => {
     ...stats,
     today: now.date,
     previous: prev ? computeStats({ ...common, ...prev }).totals : null,
+    ahead: {
+      count: ahead.length,
+      revenue: ahead.reduce((a, b) => a + b.total_price, 0),
+      week: ahead.filter((b) => b.date <= weekEnd).length,
+      today: ahead.filter((b) => b.date === now.date).length,
+      next: ahead[0] || null,
+    },
     months: monthlySeries(rows, months, now),
     comeback: comeback.rows.map((c) => ({
       id: c.id, name: c.name, last_date: c.last_date, visits: c.visits,
@@ -517,7 +527,9 @@ admin.get('/clients', wrap(async (req, res) => {
        coalesce(sum(b.total_price) FILTER (WHERE b.status = 'potvrdeno'), 0)::float AS spent
      FROM clients c LEFT JOIN bookings b ON b.client_id = c.id
      WHERE lower(c.name) LIKE $1 OR lower(c.email) LIKE $1 OR c.phone LIKE $1
-     GROUP BY c.id ORDER BY max(b.created_at) DESC NULLS LAST, c.name LIMIT 300`,
+     GROUP BY c.id
+     ORDER BY max(b.date || lpad(b.start_min::text, 4, '0')) FILTER (WHERE b.status IN ('potvrdeno','na_cekanju')) DESC NULLS LAST,
+       max(b.date || lpad(b.start_min::text, 4, '0')) DESC NULLS LAST, c.name LIMIT 300`,
     [search]
   );
   res.json(r.rows);
