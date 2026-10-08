@@ -76,6 +76,8 @@ $('[data-action="logout"]').addEventListener('click', async () => {
   showLogin();
 });
 $('[data-action="new-booking"]').addEventListener('click', () => newBookingModal());
+// Dodir na logo učita najnoviju verziju admina (aplikacija s početnog zaslona inače zna ostati na staroj)
+$('[data-action="reload"]').addEventListener('click', (e) => { e.preventDefault(); location.reload(); });
 
 $$('.tabbar button').forEach((b) => b.addEventListener('click', () => go(b.dataset.tab)));
 
