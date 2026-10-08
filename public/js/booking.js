@@ -464,6 +464,8 @@ function setupMailPick() {
 // Zadana fotografija za „O meni”; postavlja se tek kad se zna je li Barbara dodala svoju (da se ne učitaju obje)
 const ABOUT_DEFAULT = '/assets/photos/barbara-o-meni.jpg?v=2';
 function showAboutPhoto(src) {
+  storage('bsb_about', src); // idući put se ista fotografija prikaže odmah (vidi index.html)
+  if ($('#about-photo img')?.getAttribute('src') === src) return; // već je tu – ne treperi
   $('#about-photo').innerHTML = `<img src="${esc(src)}" alt="Barbara Skoko" width="1080" height="1350">`;
 }
 
