@@ -1,5 +1,7 @@
 import express from 'express';
+import compression from 'compression';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { q, initDb, getSettings, saveSetting, getServices, tx } from './db.js';
@@ -27,6 +29,8 @@ const PUBLIC = path.join(__dirname, '..', 'public');
 const app = express();
 app.set('trust proxy', true);
 app.disable('x-powered-by');
+// Stranica, skripte i podaci putuju sažeto – brže na mobilnim podacima
+app.use(compression());
 app.use((req, res, next) => {
   res.set('X-Content-Type-Options', 'nosniff');
   res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -60,6 +64,12 @@ app.get(['/rezerviraj', '/r', '/booking'], (req, res) => {
   const qs = new URLSearchParams();
   for (const k of ['usluga', 'datum']) if (req.query[k]) qs.set(k, String(req.query[k]));
   res.redirect(302, `/${qs.size ? `?${qs}` : ''}#rezervacija`);
+});
+// Naslovnica: WhatsApp, Instagram i Facebook za pregled linka traže punu adresu slike i stranice
+const INDEX_HTML = fs.readFileSync(path.join(PUBLIC, 'index.html'), 'utf8');
+app.get(['/', '/index.html'], (req, res) => {
+  const html = INDEX_HTML.replace(/(<meta property="og:(?:url|image)" content=")\//g, `$1${baseUrl()}/`);
+  res.set('Cache-Control', 'no-cache').type('html').send(html);
 });
 app.get('/rezervacija/:token', (req, res) => res.sendFile(path.join(PUBLIC, 'rezervacija.html')));
 app.get('/privatnost', (req, res) => res.sendFile(path.join(PUBLIC, 'privatnost.html')));
