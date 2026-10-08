@@ -240,14 +240,14 @@
           <h2>Vidimo <em>se uskoro</em></h2>
         </div>
         <ul class="contact-list" id="contact-list"></ul>
-        <a class="map-wrap" id="map-link" target="_blank" rel="noopener" aria-label="Otvori upute do salona u Google kartama">
+        <a class="map-wrap" id="map-link" data-route target="_blank" rel="noopener" aria-label="Otvori upute do salona u Google kartama">
           <iframe class="map" id="map" title="Lokacija salona na karti" loading="lazy" referrerpolicy="no-referrer-when-downgrade" tabindex="-1"></iframe>
         </a>
         <div class="contact-hours">
           <h3>Radno vrijeme</h3>
           <table class="hours" id="hours"></table>
         </div>
-        <a class="btn route-btn" id="route-btn" target="_blank" rel="noopener">Upute do salona</a>
+        <a class="btn route-btn" id="route-btn" data-route target="_blank" rel="noopener">Upute do salona</a>
       </div>
     </section>
   </main>
@@ -257,6 +257,13 @@
     <button class="lb-btn lb-close" type="button" data-lb="close" aria-label="Zatvori">×</button>
     <button class="lb-btn lb-prev" type="button" data-lb="-1" aria-label="Prethodna">‹</button>
     <button class="lb-btn lb-next" type="button" data-lb="1" aria-label="Sljedeća">›</button>
+  </dialog>
+
+  <dialog class="maps-pick" id="maps-pick" aria-label="Upute do salona">
+    <p>Otvori upute u aplikaciji</p>
+    <a class="btn" id="mp-google">Google Maps</a>
+    <a class="btn btn-outline" id="mp-apple">Apple Karte</a>
+    <button class="mp-cancel" type="button">Odustani</button>
   </dialog>
 
   <footer class="site-footer">

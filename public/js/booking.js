@@ -361,7 +361,7 @@ function renderContact() {
     <li>${icon('poruka')}<a href="${esc(b.whatsapp)}" target="_blank" rel="noopener">WhatsApp</a></li>
     <li>${icon('info')}<a href="mailto:${esc(b.email)}">${esc(b.email)}</a></li>
     <li>${icon('srce')}<a href="${esc(b.instagramUrl)}" target="_blank" rel="noopener">${esc(b.instagram)}</a></li>
-    <li>${icon('lokacija')}<a id="loc-link" target="_blank" rel="noopener">${esc([b.address, b.city].filter(Boolean).join(', '))}</a></li>`;
+    <li>${icon('lokacija')}<a id="loc-link" data-route target="_blank" rel="noopener">${esc([b.address, b.city].filter(Boolean).join(', '))}</a></li>`;
   const order = [1, 2, 3, 4, 5, 6, 0];
   $('#hours').innerHTML = order.map((d) => {
     const h = state.config.hours[d];
@@ -373,6 +373,37 @@ function renderContact() {
   $('#map-link').href = route;
   $('#route-btn').href = route;
   $('#loc-link').href = route;
+  // Na iPhoneu se poveznica iz Instagrama ili s početnog zaslona otvara u pregledniku, koji zna samo približnu
+  // lokaciju; zato se nudi izravno otvaranje aplikacije (Google Maps ili Apple Karte), koja koristi GPS.
+  const dest = /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/.test(place) ? place.replace(/\s/g, '') : encodeURIComponent(place);
+  state.maps = { web: route, google: `comgooglemaps://?daddr=${dest}&directionsmode=driving` };
+  $('#mp-apple').href = `maps://?daddr=${dest}&dirflg=d`;
+}
+
+const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+function setupMapsPick() {
+  const dlg = $('#maps-pick');
+  document.addEventListener('click', (e) => {
+    if (!IOS || !state.maps || !e.target.closest('[data-route]')) return;
+    e.preventDefault();
+    dlg.showModal();
+  });
+  dlg.addEventListener('click', (e) => {
+    if (e.target.closest('#mp-apple')) return dlg.close();
+    if (e.target.closest('#mp-google')) {
+      e.preventDefault();
+      dlg.close();
+      // ako aplikacija Google Maps nije instalirana, stranica ostaje vidljiva pa se otvara web verzija
+      let left = false;
+      const away = () => { left = true; };
+      document.addEventListener('visibilitychange', away, { once: true });
+      window.addEventListener('pagehide', away, { once: true });
+      location.href = state.maps.google;
+      setTimeout(() => { if (!left && !document.hidden) location.href = state.maps.web; }, 1500);
+      return;
+    }
+    if (e.target === dlg || e.target.closest('.mp-cancel')) dlg.close();
+  });
 }
 
 // Zadana fotografija za „O meni”; postavlja se tek kad se zna je li Barbara dodala svoju (da se ne učitaju obje)
@@ -598,6 +629,7 @@ function renderEvents() {
   $('#year').textContent = new Date().getFullYear();
   renderWorks();
   setupLightbox();
+  setupMapsPick();
   try {
     state.config = await api('/api/config');
   } catch {
