@@ -585,9 +585,11 @@ async function renderClientExtras(root, f) {
     <div><div class="who">${km(x.status === 'aktivan' ? x.balance : x.amount)}${x.status === 'aktivan' && x.balance < x.amount ? ` <small class="muted">od ${km(x.amount)}</small>` : ''} <span class="status-pill v-${x.status}">${esc(x.expired && x.status === 'aktivan' ? 'Istekao' : VOUCHER_STATUS[x.status])}</span></div>
       <div class="what"><code>${esc(x.code)}</code>${x.recipient ? ` · za ${esc(x.recipient)}` : ''}${x.expires_on ? ` · vrijedi do ${esc(shortDate(x.expires_on))}` : ''}</div>
       <div class="what">${x.buyer_name ? `Kupio/la: ${esc(x.buyer_name)}` : 'Napravljen u salonu'}${x.buyer_phone ? ' · ' + esc(x.buyer_phone) : ''}${x.buyer_email ? ' · ' + esc(x.buyer_email) : ''}</div>
+      ${x.source === 'web' ? `<div class="what">Plaćanje: ${esc(x.payment_label.toLowerCase())}${x.status === 'naruceno' && x.payment === 'racun' && !state.settings?.extras?.voucherBankInfo ? ' · <span class="error">upišite podatke za uplatu u Postavkama (Dodatne mogućnosti → Poklon bonovi)</span>' : ''}</div>` : ''}
       ${x.redemptions?.length ? `<div class="what">Iskorišteno: ${x.redemptions.map((r) => `${esc(shortDate(r.date))} ${km(r.amount)}`).join(', ')}</div>` : ''}
     </div>
     <div class="actions">
+      ${x.pay_whatsapp ? `<a class="btn btn-small btn-outline" href="${esc(x.pay_whatsapp)}" target="_blank" rel="noopener">Podaci za uplatu (WhatsApp)</a>` : ''}
       ${x.status === 'naruceno' ? `<button class="btn btn-small" data-v-paid="${x.id}">Plaćeno, pošalji bon</button>` : ''}
       ${x.status !== 'naruceno' ? `<a class="btn btn-small btn-outline" href="${esc(x.link)}" target="_blank" rel="noopener">Bon</a>` : ''}
       ${['naruceno', 'aktivan'].includes(x.status) ? `<button class="btn-link" data-v-cancel="${x.id}">Otkaži</button>` : ''}
@@ -1033,7 +1035,8 @@ async function featurePanel(k, settings) {
         <div class="field compact"><label>Iznosi (KM, odvojeni zarezom)</label><input id="x-amounts" value="${esc((x.voucherAmounts || []).join(', '))}"></div>
         <div class="field compact"><label>Bon vrijedi (mjeseci)</label><input id="x-months" type="number" min="1" max="36" value="${x.voucherMonths || 12}"></div>
       </div>
-      <div class="field compact" style="margin-top:8px"><label>Kako se bon plaća (piše kupcu nakon narudžbe)</label><textarea id="x-payment" rows="3">${esc(x.voucherPayment || '')}</textarea></div>
+      <p class="small" style="margin-top:8px">Kupac pri narudžbi bira plaćanje u salonu ili uplatu na račun. Za uplatu na račun broj računa se ne prikazuje na stranici ni u emailu: kod narudžbe dobijete gumb koji otvara WhatsApp s već upisanom porukom i ovim podacima.</p>
+      <div class="field compact"><label>Podaci za uplatu na račun (idu samo kupcu na WhatsApp)</label><textarea id="x-bank" rows="4" placeholder="npr. Primatelj: Barbara Skoko&#10;Banka: …&#10;Broj računa: …">${esc(x.voucherBankInfo || '')}</textarea></div>
       <div class="toolbar"><button class="btn btn-small" data-x-save="vouchers">Spremi</button></div>`;
   }
   if (k === 'events') {
@@ -1103,7 +1106,7 @@ async function renderFeatures(root, settings) {
   });
   $$('[data-x-save]', root).forEach((b) => b.addEventListener('click', () => {
     if (b.dataset.xSave === 'events') return saveExtras({ depositInfo: $('#x-deposit', root).value });
-    return saveExtras({ voucherAmounts: $('#x-amounts', root).value, voucherMonths: $('#x-months', root).value, voucherPayment: $('#x-payment', root).value });
+    return saveExtras({ voucherAmounts: $('#x-amounts', root).value, voucherMonths: $('#x-months', root).value, voucherBankInfo: $('#x-bank', root).value });
   }));
 }
 

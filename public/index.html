@@ -193,9 +193,14 @@
           <div class="field"><label for="v-name">Vaše ime i prezime</label><input id="v-name" autocomplete="name"></div>
           <div class="field"><label for="v-phone">Broj mobitela</label><input id="v-phone" type="tel" autocomplete="tel" inputmode="tel"></div>
           <div class="field"><label for="v-email">Email (na njega stiže bon)</label><input id="v-email" type="email" autocomplete="email" inputmode="email"></div>
+          <div class="field"><span class="field-label">Kako želite platiti</span>
+            <div class="pay-options">
+              <label class="pay"><input type="radio" name="v-pay" value="salon" checked><span><strong>U salonu</strong>Platite osobno kad svratite, a bon vam zatim stiže emailom.</span></label>
+              <label class="pay"><input type="radio" name="v-pay" value="racun"><span><strong>Uplatom na račun</strong>Podatke za uplatu Barbara vam šalje na WhatsApp.</span></label>
+            </div>
+          </div>
           <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
           <label class="check"><input type="checkbox" id="v-consent"><span>Slažem se s obradom osobnih podataka radi narudžbe bona. <a href="/privatnost" target="_blank">Više o privatnosti</a></span></label>
-          <p class="notice" id="v-payment"></p>
           <p class="error" id="v-error" role="alert" hidden></p>
           <div class="step-actions"><span></span><button class="btn" type="submit" id="v-submit">Naručite bon</button></div>
         </form>

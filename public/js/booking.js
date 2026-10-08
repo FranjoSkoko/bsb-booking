@@ -560,7 +560,6 @@ function renderVouchers() {
   if (!state.config.features?.vouchers || !v?.amounts?.length) return;
   $('#v-amounts').innerHTML = v.amounts.map((a, i) => `<label class="amount"><input type="radio" name="v-amount" value="${a}" ${i === Math.min(1, v.amounts.length - 1) ? 'checked' : ''}><span>${km(a)}</span></label>`).join('');
   $('#v-intro').textContent = `Bon vrijedi ${v.months} ${v.months % 10 === 1 && v.months !== 11 ? 'mjesec' : v.months % 10 >= 2 && v.months % 10 <= 4 && (v.months < 12 || v.months > 14) ? 'mjeseca' : 'mjeseci'} za sve usluge u salonu. Dobivate ga emailom, spreman za ispis ili za proslijediti.`;
-  $('#v-payment').textContent = v.payment || '';
   $('#poklon-bon').hidden = false;
   $('[data-feature-link="vouchers"]').hidden = false;
   prefill('v');
@@ -572,6 +571,7 @@ function renderVouchers() {
       amount: Number($('input[name="v-amount"]:checked')?.value), recipient: $('#v-recipient').value, message: $('#v-message').value,
       name: $('#v-name').value, phone: $('#v-phone').value, email: $('#v-email').value,
       consent: $('#v-consent').checked, website: e.target.elements.website.value,
+      payment: $('input[name="v-pay"]:checked')?.value || 'salon',
     };
     const problem = !data.amount ? 'Odaberite iznos bona.' : contactProblem(data) || (!data.consent ? 'Za narudžbu je potrebna privola za obradu podataka.' : null);
     if (problem) { err.textContent = problem; err.hidden = false; return; }
@@ -583,7 +583,7 @@ function renderVouchers() {
       $('#v-done').innerHTML = `<img src="/assets/icons/BSB_ikona_kvacica_tamna.png" alt="">
         <h3>Hvala, narudžba je poslana</h3>
         <p>Poklon bon ${esc(km(data.amount))}${data.recipient.trim() ? ` za ${esc(data.recipient.trim())}` : ''}. Potvrdu smo poslali na ${esc(data.email)}.</p>
-        ${v.payment ? `<p class="notice">${esc(v.payment)}</p>` : ''}`;
+        <p class="notice">${data.payment === 'racun' ? `Podatke za uplatu Barbara vam šalje na WhatsApp (${esc(data.phone)}). Čim uplata sjedne, bon vam stiže emailom.` : 'Bon platite osobno u salonu, a Barbara vam ga zatim šalje emailom.'}</p>`;
       $('#v-done').hidden = false;
       $('#v-done').scrollIntoView({ behavior: 'smooth', block: 'center' });
     } catch (ex) {
