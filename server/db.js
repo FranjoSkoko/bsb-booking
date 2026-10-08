@@ -96,6 +96,8 @@ CREATE TABLE IF NOT EXISTS blocks (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS blocks_date_idx ON blocks (date);
+-- open = TRUE: Barbara je za taj dan otvorila dodatne termine (izvan redovnog radnog vremena)
+ALTER TABLE blocks ADD COLUMN IF NOT EXISTS open BOOLEAN NOT NULL DEFAULT FALSE;
 CREATE TABLE IF NOT EXISTS gallery (
   id SERIAL PRIMARY KEY,
   mime TEXT NOT NULL,

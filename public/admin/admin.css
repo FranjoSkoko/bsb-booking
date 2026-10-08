@@ -208,3 +208,6 @@ details summary { cursor: pointer; color: var(--rose-dark); margin: 4px 0 8px; }
 details.more { border-top: 1px solid var(--line); padding: 8px 0; }
 details.more summary { font-size: 14px; }
 .row code { font-size: 13px; letter-spacing: .04em; color: var(--ink); }
+
+.row.block.open { background: #F1F6EF; }
+.row.block.open .who { color: #3F6B45; }

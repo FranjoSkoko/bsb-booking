@@ -59,3 +59,17 @@ test('više usluga: zbroj trajanja i cijene', () => {
   const c = combine([{ duration: 60, price: 60, slot_step: 60 }, { duration: 30, price: 25, slot_step: 30 }]);
   assert.deepEqual(c, { duration: 90, price: 85, step: 60 });
 });
+
+test('subota: 08:30–16:30 bez pauze, zadnje šminkanje 15:30, obrve 16:00', () => {
+  const m = daySlots({ date: '2026-10-17', hours, duration: 60, step: 60, busy: [], rules, now });
+  assert.deepEqual(hm(m), ['08:30', '09:30', '10:30', '11:30', '12:30', '13:30', '14:30', '15:30']);
+  const b = daySlots({ date: '2026-10-17', hours, duration: 30, step: 30, busy: [], rules, now });
+  assert.equal(hm(b).at(-1), '16:00');
+});
+
+test('dodatni termini u pauzi i nedjeljom', () => {
+  const m = daySlots({ date: '2026-10-13', hours, duration: 60, step: 60, busy: [], rules, now, extra: [[750, 870]] });
+  assert.ok(hm(m).includes('12:30') && hm(m).includes('13:30') && !hm(m).includes('14:30'));
+  const sun = daySlots({ date: '2026-10-18', hours, duration: 30, step: 30, busy: [], rules, now, extra: [[600, 720]] });
+  assert.deepEqual(hm(sun), ['10:00', '10:30', '11:00', '11:30']);
+});

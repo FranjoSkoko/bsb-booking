@@ -31,8 +31,20 @@ export function dayIntervals(dh) {
   return [[open, bf], [bt, close]];
 }
 
-export function daySlots({ date, hours, duration, step, busy, rules, now = nowLocal() }) {
-  const parts = dayIntervals(hours[dayOfWeek(date)]);
+/** Spoji radne dijelove dana i dodatno otvorena vremena u nepreklapajuće intervale. */
+export function mergeIntervals(list) {
+  const out = [];
+  for (const [s, e] of [...list].filter(([s, e]) => e > s).sort((a, b) => a[0] - b[0])) {
+    const last = out.at(-1);
+    if (last && s <= last[1]) last[1] = Math.max(last[1], e);
+    else out.push([s, e]);
+  }
+  return out;
+}
+
+/** extra: dodatno otvorena vremena za taj dan, npr. [[750, 870]] = 12:30–14:30 */
+export function daySlots({ date, hours, duration, step, busy, rules, extra = [], now = nowLocal() }) {
+  const parts = mergeIntervals([...dayIntervals(hours[dayOfWeek(date)]), ...extra]);
   if (!parts.length) return [];
 
   const ahead = diffDays(now.date, date);
