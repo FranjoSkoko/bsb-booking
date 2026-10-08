@@ -16,12 +16,24 @@ export function combine(services) {
  * Slobodni termini za jedan dan.
  * busy: [{start, end}] u minutama (rezervacije + blokade)
  */
-export function daySlots({ date, hours, duration, step, busy, rules, now = nowLocal() }) {
-  const dh = hours[dayOfWeek(date)];
+/**
+ * Radni dijelovi dana u minutama, npr. [[510, 750], [990, 1230]] za 08:30–12:30 i 16:30–20:30.
+ * Pauza (breakFrom–breakTo) je neobavezna.
+ */
+export function dayIntervals(dh) {
   if (!dh) return [];
   const open = toMin(dh.open);
   const close = toMin(dh.close);
   if (open == null || close == null || close <= open) return [];
+  const bf = toMin(dh.breakFrom);
+  const bt = toMin(dh.breakTo);
+  if (bf == null || bt == null || !(open < bf && bf < bt && bt < close)) return [[open, close]];
+  return [[open, bf], [bt, close]];
+}
+
+export function daySlots({ date, hours, duration, step, busy, rules, now = nowLocal() }) {
+  const parts = dayIntervals(hours[dayOfWeek(date)]);
+  if (!parts.length) return [];
 
   const ahead = diffDays(now.date, date);
   if (ahead < 0 || ahead > rules.maxDaysAhead) return [];
@@ -30,11 +42,15 @@ export function daySlots({ date, hours, duration, step, busy, rules, now = nowLo
   const buffer = rules.bufferMin || 0;
 
   const out = [];
-  for (let t = open; t + duration <= close; t += step) {
-    // minimalni razmak od trenutnog vremena
-    if (ahead * 1440 + t - now.min < minNotice) continue;
-    const clash = busy.some((b) => t < b.end + buffer && b.start < t + duration + buffer);
-    if (!clash) out.push(t);
+  // Termin mora cijeli stati u jedan dio dana (prije ili poslije pauze); preklapanje s
+  // postojećom rezervacijom ili blokadom zatvara termin (npr. šminkanje u 19:30 zatvara obrve u 20:00).
+  for (const [open, close] of parts) {
+    for (let t = open; t + duration <= close; t += step) {
+      // minimalni razmak od trenutnog vremena
+      if (ahead * 1440 + t - now.min < minNotice) continue;
+      const clash = busy.some((b) => t < b.end + buffer && b.start < t + duration + buffer);
+      if (!clash) out.push(t);
+    }
   }
   return out;
 }

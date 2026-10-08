@@ -206,6 +206,10 @@ export async function initDb() {
   for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
     await q('INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING', [key, JSON.stringify(value)]);
   }
+  // Staro zadano radno vrijeme (09–19, pon–sub) zamijeni novim s pauzom; ručno promijenjeno se ne dira
+  const old = { open: '09:00', close: '19:00' };
+  const oldHours = JSON.stringify({ 0: null, 1: old, 2: old, 3: old, 4: old, 5: old, 6: old });
+  await q(`UPDATE settings SET value = $1 WHERE key = 'hours' AND value = $2::jsonb`, [JSON.stringify(DEFAULT_SETTINGS.hours), oldHours]);
 }
 
 export async function getSettings() {

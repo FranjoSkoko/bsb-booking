@@ -1,6 +1,7 @@
 // Analitika za Barbaru: brojke za odabrano razdoblje.
 // Sve se računa iz popisa rezervacija (bez baze), pa se može testirati.
 import { wallMinutes, nowLocal, toMin, dayOfWeek, addDays, diffDays } from './time.js';
+import { dayIntervals } from './slots.js';
 
 const round2 = (n) => Math.round(n * 100) / 100;
 const sum = (list) => round2(list.reduce((a, b) => a + Number(b.total_price), 0));
@@ -41,17 +42,16 @@ function serviceShares(b) {
 export function openMinutes(from, to, hours, blocks = []) {
   let total = 0;
   for (let d = from; d <= to; d = addDays(d, 1)) {
-    const h = hours[dayOfWeek(d)];
-    const open = toMin(h?.open);
-    const close = toMin(h?.close);
-    if (open == null || close == null || close <= open) continue;
-    let mins = close - open;
-    for (const bl of blocks) {
-      if (bl.date !== d) continue;
-      if (bl.start_min == null) { mins = 0; break; }
-      mins -= Math.max(0, Math.min(close, bl.end_min) - Math.max(open, bl.start_min));
+    const parts = dayIntervals(hours[dayOfWeek(d)]);
+    if (blocks.some((bl) => bl.date === d && bl.start_min == null)) continue;
+    for (const [open, close] of parts) {
+      let mins = close - open;
+      for (const bl of blocks) {
+        if (bl.date !== d) continue;
+        mins -= Math.max(0, Math.min(close, bl.end_min) - Math.max(open, bl.start_min));
+      }
+      total += Math.max(0, mins);
     }
-    total += Math.max(0, mins);
   }
   return total;
 }

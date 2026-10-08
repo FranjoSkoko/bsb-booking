@@ -29,6 +29,8 @@ async function api(url, opts = {}) {
   return data;
 }
 
+const hoursText = (h) => (h.breakFrom ? `${h.open}–${h.breakFrom}, ${h.breakTo}–${h.close}` : `${h.open}–${h.close}`);
+
 function toast(msg) {
   const t = $('#toast');
   t.textContent = msg;
@@ -379,7 +381,7 @@ async function viewCalendar(v) {
       const bls = blocks.filter((b) => b.date === d);
       const items = [...list.map((b) => ({ k: b.start_min, html: bookingRow(b) })), ...bls.map((b) => ({ k: b.start_min ?? -1, html: blockRow(b) }))].sort((a, b) => a.k - b.k);
       const h = hours[dow(d)];
-      return `<div class="day-head"><h3>${fmtDay(d)}${d === state.today ? ' · danas' : ''}</h3><span class="label">${holidays[d] ? `praznik · ${esc(holidays[d])}` : h ? `${h.open}–${h.close}` : 'zatvoreno'}</span></div>
+      return `<div class="day-head"><h3>${fmtDay(d)}${d === state.today ? ' · danas' : ''}</h3><span class="label">${holidays[d] ? `praznik · ${esc(holidays[d])}` : h ? hoursText(h) : 'zatvoreno'}</span></div>
         <div class="panel">${items.length ? items.map((i) => i.html).join('') : '<div class="empty-row">Slobodno.</div>'}</div>`;
     }).join('');
     wireRows(v, bookings);
@@ -1051,8 +1053,12 @@ async function viewSettings(v) {
       <div class="hours-edit" data-day="${d}">
         <span style="text-transform:capitalize">${DANI[d]}</span>
         <label class="check small"><input type="checkbox" class="h-open" ${hours[d] ? 'checked' : ''}> radi</label>
-        <input type="time" class="h-from" value="${hours[d]?.open || '09:00'}" step="1800">
-        <input type="time" class="h-to" value="${hours[d]?.close || '19:00'}" step="1800">
+        <input type="time" class="h-from" value="${hours[d]?.open || '08:30'}" step="1800" aria-label="Od">
+        <input type="time" class="h-to" value="${hours[d]?.close || '20:30'}" step="1800" aria-label="Do">
+        <span class="h-sp"></span>
+        <label class="check small h-pause-lbl"><input type="checkbox" class="h-pause" ${hours[d]?.breakFrom ? 'checked' : ''}> pauza</label>
+        <input type="time" class="h-bfrom" value="${hours[d]?.breakFrom || '12:30'}" step="1800" aria-label="Pauza od">
+        <input type="time" class="h-bto" value="${hours[d]?.breakTo || '16:30'}" step="1800" aria-label="Pauza do">
       </div>`).join('')}
     </div>
 
@@ -1179,7 +1185,11 @@ async function viewSettings(v) {
   $('#settings-save', v).addEventListener('click', async () => {
     const hrs = {};
     $$('.hours-edit', v).forEach((row) => {
-      hrs[row.dataset.day] = $('.h-open', row).checked ? { open: $('.h-from', row).value, close: $('.h-to', row).value } : null;
+      hrs[row.dataset.day] = !$('.h-open', row).checked ? null : {
+        open: $('.h-from', row).value,
+        close: $('.h-to', row).value,
+        ...($('.h-pause', row).checked ? { breakFrom: $('.h-bfrom', row).value, breakTo: $('.h-bto', row).value } : {}),
+      };
     });
     try {
       state.settings = await api('/api/admin/settings', {

@@ -8,7 +8,8 @@ export const DEFAULT_SERVICES = [
   { id: 'nadusnice', category: 'FACE', name: 'Nadusnice', description: 'Uklanjanje dlačica iznad usne koncem.', price: 5, duration: 30, slot_step: 30 },
 ];
 
-const day = { open: '09:00', close: '19:00' };
+// Barbara radi 08:30–12:30 i 16:30–20:30 (pauza dok je dijete iz vrtića doma)
+const day = { open: '08:30', close: '20:30', breakFrom: '12:30', breakTo: '16:30' };
 
 export const DEFAULT_SETTINGS = {
   business: {

@@ -365,7 +365,7 @@ function renderContact() {
   const order = [1, 2, 3, 4, 5, 6, 0];
   $('#hours').innerHTML = order.map((d) => {
     const h = state.config.hours[d];
-    return `<tr><td>${DANI[d]}</td><td>${h ? `${h.open} – ${h.close}` : 'zatvoreno'}</td></tr>`;
+    return `<tr><td>${DANI[d]}</td><td>${!h ? 'zatvoreno' : h.breakFrom ? `${h.open} – ${h.breakFrom}<br>${h.breakTo} – ${h.close}` : `${h.open} – ${h.close}`}</td></tr>`;
   }).join('');
   const place = b.mapQuery || [b.address, b.city, 'Bosna i Hercegovina'].filter(Boolean).join(', ');
   const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(place)}`;

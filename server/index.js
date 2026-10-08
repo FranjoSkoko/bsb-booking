@@ -398,6 +398,12 @@ admin.put('/settings', wrap(async (req, res) => {
       const c = toMin(h.close);
       if (o == null || c == null || c <= o) throw new UserError('Provjerite radno vrijeme.');
       next[d] = { open: toHHMM(o), close: toHHMM(c) };
+      if (h.breakFrom || h.breakTo) {
+        const bf = toMin(h.breakFrom);
+        const bt = toMin(h.breakTo);
+        if (bf == null || bt == null || !(o < bf && bf < bt && bt < c)) throw new UserError('Provjerite pauzu: mora biti unutar radnog vremena.');
+        Object.assign(next[d], { breakFrom: toHHMM(bf), breakTo: toHHMM(bt) });
+      }
     }
     await saveSetting('hours', next);
   }
