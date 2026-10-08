@@ -21,7 +21,7 @@ export const DEFAULT_SETTINGS = {
     city: 'Široki Brijeg',
     phone: '+387 63 674 074',
     whatsapp: 'https://wa.me/38763674074',
-    email: 'barbaraskokobeauty@gmail.com',
+    email: 'info@barbaraskokobeauty.com',
     instagram: '@barbaraskokobeauty',
     instagramUrl: 'https://www.instagram.com/barbaraskokobeauty/',
     reviewUrl: '',
