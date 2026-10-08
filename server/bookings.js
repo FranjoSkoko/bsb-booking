@@ -5,6 +5,7 @@ import { randomToken } from './auth.js';
 import { sendBookingEmail } from './email.js';
 import { emit } from './hooks.js';
 import { closedHolidays } from './holidays.js';
+import { phoneDigits } from './phone.js';
 
 export class UserError extends Error {
   constructor(message, status = 400) {
@@ -135,11 +136,19 @@ export function cleanInput({ name, phone, email, note }, { requireContact = true
   return { name, phone, email, note };
 }
 
-async function upsertClient(db, { name, phone, email }) {
+/**
+ * Klijentica uz termin. Kad Barbara sama upisuje termin, klijentica se prepoznaje po imenu (broj i email
+ * često nema). Online rezervacija prvo traži po emailu, a zatim po imenu klijentice koja još nema email.
+ */
+async function upsertClient(db, { name, phone, email }, { fromAdmin = false } = {}) {
   let found = null;
-  if (email) found = (await db.query('SELECT id FROM clients WHERE lower(email) = $1 ORDER BY id LIMIT 1', [email])).rows[0];
-  // Po broju samo kad nema emaila (Barbara upisuje ručno) – inače bi se spojile dvije osobe s istim brojem
-  if (!found && phone && !email) found = (await db.query('SELECT id FROM clients WHERE phone = $1 ORDER BY id LIMIT 1', [phone])).rows[0];
+  if (email && !fromAdmin) found = (await db.query('SELECT id FROM clients WHERE lower(email) = $1 ORDER BY id LIMIT 1', [email])).rows[0];
+  if (!found) {
+    found = (await db.query(
+      `SELECT id FROM clients WHERE lower(name) = lower($1) AND ($2 = '' OR email = '' OR lower(email) = $2) ORDER BY id LIMIT 1`,
+      [name, fromAdmin ? '' : email]
+    )).rows[0];
+  }
   if (found) {
     await db.query(
       `UPDATE clients SET name = $2, phone = COALESCE(NULLIF($3, ''), phone), email = COALESCE(NULLIF($4, ''), email) WHERE id = $1`,
@@ -159,6 +168,8 @@ export async function createBooking(input, { fromAdmin = false } = {}) {
   const settings = await getSettings();
   const services = await resolveServices(input.services || [], { allowInactive: fromAdmin });
   const contact = cleanInput(input, { requireContact: !fromAdmin });
+  // Barbarin vlastiti broj nije broj klijentice
+  if (fromAdmin && contact.phone && phoneDigits(contact.phone) === phoneDigits(settings.business.phone)) contact.phone = '';
   if (!fromAdmin && !input.consent) throw new UserError('Za rezervaciju je potrebna privola za obradu podataka.');
   if (!fromAdmin && !settings.rules.allowMultiple && services.length > 1) throw new UserError('Moguće je odabrati jednu uslugu po rezervaciji.');
 
@@ -185,7 +196,7 @@ export async function createBooking(input, { fromAdmin = false } = {}) {
       const free = daySlots({ date, hours: hoursFor(settings, holiday), duration, step, busy, extra, rules: settings.rules });
       if (!free.includes(start)) throw new UserError('Taj termin je upravo zauzet. Odaberite drugo vrijeme.', 409);
     }
-    const clientId = await upsertClient(db, contact);
+    const clientId = await upsertClient(db, contact, { fromAdmin });
     const r = await db.query(
       `INSERT INTO bookings (token, client_id, name, phone, email, date, start_min, duration, services, total_price,
          note, status, source, consent_at, confirmed_at)
