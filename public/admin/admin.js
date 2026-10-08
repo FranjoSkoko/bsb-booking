@@ -11,6 +11,9 @@ const DANI_KR = ['Pon', 'Uto', 'Sri', 'Čet', 'Pet', 'Sub', 'Ned'];
 const MJ = ['siječnja', 'veljače', 'ožujka', 'travnja', 'svibnja', 'lipnja', 'srpnja', 'kolovoza', 'rujna', 'listopada', 'studenoga', 'prosinca'];
 const MJ_NOM = ['siječanj', 'veljača', 'ožujak', 'travanj', 'svibanj', 'lipanj', 'srpanj', 'kolovoz', 'rujan', 'listopad', 'studeni', 'prosinac'];
 const STATUS = { na_cekanju: 'Na čekanju', potvrdeno: 'Potvrđeno', odbijeno: 'Odbijeno', otkazano: 'Otkazano', nije_dosla: 'Nije došla' };
+// Potvrđen termin koji je već počeo je odrađen (isto pravilo kao u analitici); „Potvrđeno“ su samo oni u dolasku
+const statusText = (b) => (b.status === 'potvrdeno' && b.started ? 'Odrađeno' : STATUS[b.status]);
+const pill = (b) => `<span class="status-pill st-${b.status === 'potvrdeno' && b.started ? 'odradeno' : b.status}">${statusText(b)}</span>`;
 
 const dObj = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)); };
 const ymd = (d) => d.toISOString().slice(0, 10);
@@ -140,7 +143,7 @@ function bookingRow(b, { showDate = false, quick = false } = {}) {
     </div>
     <div class="actions">
       ${quick && b.status === 'na_cekanju' && b.started ? '<span class="status-pill st-nije_dosla">Prošlo</span>'
-        : quick && b.status === 'na_cekanju' ? `<button class="btn btn-small" data-quick="potvrdeno">Potvrdi</button><button class="btn btn-small btn-outline" data-quick="odbijeno">Odbij</button>` : `<span class="status-pill st-${b.status}">${STATUS[b.status]}</span>`}
+        : quick && b.status === 'na_cekanju' ? `<button class="btn btn-small" data-quick="potvrdeno">Potvrdi</button><button class="btn btn-small btn-outline" data-quick="odbijeno">Odbij</button>` : pill(b)}
     </div>
   </div>`;
 }
@@ -205,7 +208,7 @@ function bookingModal(b) {
   }[b.status] || [];
   modal.open(`
     <div class="modal-head"><h2>${esc(b.name)}</h2><button class="close-x" data-close aria-label="Zatvori">×</button></div>
-    <span class="status-pill st-${b.status}">${STATUS[b.status]}</span>
+    ${pill(b)}
     <dl class="kv">
       <dt>Usluga</dt><dd>${esc(b.services.map((s) => s.name).join(' + '))}</dd>
       <dt>Termin</dt><dd>${fmtDay(b.date)} · ${hhmm(b.start_min)}–${hhmm(b.start_min + b.duration)}</dd>
@@ -707,7 +710,7 @@ async function clientModal(id) {
     <div class="field compact"><label>Bilješke (npr. alergije, omiljeni look, nijansa henne)</label><textarea id="c-notes">${esc(c.notes)}</textarea></div>
     <div class="btn-row"><button class="btn btn-small" id="c-save">Spremi bilješke</button></div>
     <h3>Povijest</h3>
-    <div>${c.bookings.length ? c.bookings.map((b) => `<div class="row ${['odbijeno', 'otkazano', 'nije_dosla'].includes(b.status) ? 'dim' : ''}" style="cursor:default;grid-template-columns:1fr auto"><div><div class="who">${fmtDay(b.date)} · ${hhmm(b.start_min)}</div><div class="what">${esc(b.services.map((s) => s.name).join(' + '))} · ${km(b.total_price)}</div></div><span class="status-pill st-${b.status}">${STATUS[b.status]}</span></div>`).join('') : '<div class="empty-row">Nema termina.</div>'}</div>
+    <div>${c.bookings.length ? c.bookings.map((b) => `<div class="row ${['odbijeno', 'otkazano', 'nije_dosla'].includes(b.status) ? 'dim' : ''}" data-bid="${b.id}" style="grid-template-columns:1fr auto"><div><div class="who">${fmtDay(b.date)} · ${hhmm(b.start_min)}</div><div class="what">${esc(b.services.map((s) => s.name).join(' + '))} · ${km(b.total_price)}</div></div>${pill(b)}</div>`).join('') : '<div class="empty-row">Nema termina.</div>'}</div>
     <p class="small" style="margin-top:20px"><button class="btn-link" id="c-del">Obriši podatke klijentice (na njezin zahtjev)</button></p>
     <p class="small" style="margin-top:8px"><button class="btn-link" id="c-del-all">Obriši klijenticu i sve njezine termine (testovi)</button></p>`, (root) => {
     $('#c-del-all', root).addEventListener('click', async () => {
@@ -717,6 +720,7 @@ async function clientModal(id) {
       modal.close();
       render();
     });
+    $$('[data-bid]', root).forEach((r) => r.addEventListener('click', () => bookingModal(c.bookings.find((b) => b.id === Number(r.dataset.bid)))));
     $('#c-save', root).addEventListener('click', async () => {
       await api(`/api/admin/clients/${id}`, { method: 'PATCH', body: { notes: $('#c-notes', root).value } });
       toast('Bilješke spremljene.');
@@ -812,6 +816,29 @@ function vbars(items) {
     <div class="vt"><i style="height:${(i.n / max) * 100}%"></i>${i.n ? `<span class="v" style="bottom:${(i.n / max) * 100}%">${i.n}</span>` : ''}</div><span class="k">${esc(i.k)}</span></div>`).join('')}</div>`;
 }
 
+// Potvrđeni termini koji tek dolaze – ne ovisi o odabranom mjesecu
+function aheadPanel(a) {
+  if (!a) return '';
+  const n = a.next;
+  const when = n && (n.date === state.today ? 'danas' : n.date === addDays(state.today, 1) ? 'sutra' : fmtDay(n.date));
+  return `<div class="ahead">
+    <div class="ahead-main"><span class="label">U dolasku</span><b>${a.count}</b><small>${a.count === 1 ? 'potvrđen termin' : 'potvrđenih termina'}${a.count ? ` · ${km(a.revenue)}` : ''}</small></div>
+    <div><span class="label">Danas</span><b>${a.today}</b><small>${a.week} do nedjelje</small></div>
+    <div class="${n ? 'tap' : ''}" ${n ? 'data-next role="button" tabindex="0"' : ''}><span class="label">Sljedeći termin</span>${n ? `<b class="sm">${esc(when)} · ${hhmm(n.start_min)}</b><small>${esc(n.name)} · ${esc(n.services.map((x) => x.name).join(' + '))}</small>` : '<b class="sm">–</b><small>nema potvrđenih termina</small>'}</div>
+  </div>`;
+}
+
+// Popis otkazanih termina u razdoblju; odatle se testni termin može i obrisati
+async function cancelledModal(p) {
+  const { bookings } = await api(`/api/admin/bookings?status=otkazano${p.from ? `&from=${p.from}&to=${p.to}` : ''}`);
+  modal.open(`
+    <div class="modal-head"><h2>Otka<em>zano</em></h2><button class="close-x" data-close aria-label="Zatvori">×</button></div>
+    <p class="small muted">${esc(p.title.replace(/\.$/, ''))}: testni ili pogrešno upisan termin otvorite i obrišite, pa se više ne broji.</p>
+    <div>${bookings.map((b) => `<div class="row dim" data-bid="${b.id}" style="grid-template-columns:1fr auto"><div><div class="who">${esc(b.name)}</div><div class="what">${fmtDay(b.date)} · ${hhmm(b.start_min)} · ${esc(b.services.map((x) => x.name).join(' + '))}</div></div>${pill(b)}</div>`).join('') || '<div class="empty-row">Nema otkazanih termina.</div>'}</div>`, (root) => {
+    $$('[data-bid]', root).forEach((r) => r.addEventListener('click', () => bookingModal(bookings.find((b) => b.id === Number(r.dataset.bid)))));
+  });
+}
+
 async function viewStats(v) {
   state.stats ||= { mode: 'mjesec', month: state.today.slice(0, 7), year: Number(state.today.slice(0, 4)) };
   const s = state.stats;
@@ -839,11 +866,12 @@ async function viewStats(v) {
         ${s.mode !== 'sve' ? '<button class="round" data-step="1" aria-label="Sljedeće">›</button>' : ''}
       </div>
     </div>
+    ${aheadPanel(d.ahead)}
     ${empty ? '<p class="small" style="color:var(--muted)">U ovom razdoblju još nema termina.</p>' : ''}
     <div class="kpis">
       <div class="kpi"><span class="label">Promet</span><b>${km(t.revenue)}</b>${delta(t.revenue, prev?.revenue, p.prevLabel, km)}<small>odrađeni termini${t.done ? ` · prosjek ${km(t.avg)}` : ''}</small></div>
       <div class="kpi"><span class="label">Odrađeno</span><b>${t.done}</b>${delta(t.done, prev?.done, p.prevLabel, String)}${t.upcoming ? `<small>još ${t.upcoming} dogovoreno · ${km(t.upcomingRevenue)}</small>` : ''}</div>
-      <div class="kpi"><span class="label">Otkazano</span><b>${t.cancelled}</b><small>${pct(t.cancelRate)} rezervacija${t.cancelledLate ? ` · ${t.cancelledLate} kasno` : ''}</small></div>
+      <div class="kpi${t.cancelled ? ' tap' : ''}" ${t.cancelled ? 'data-list="otkazano" role="button" tabindex="0"' : ''}><span class="label">Otkazano</span><b>${t.cancelled}</b><small>${pct(t.cancelRate)} rezervacija${t.cancelledLate ? ` · ${t.cancelledLate} kasno` : ''}</small></div>
       <div class="kpi"><span class="label">Nije došla</span><b>${t.noShow}</b><small>izgubljeno ${km(t.lostRevenue)} (s otkazanima)</small></div>
       <div class="kpi"><span class="label">Klijentice</span><b>${t.clients}</b><small>${s.mode === 'sve' ? `${t.repeatClients} dolazi više puta` : `${t.newClients} novih · ${t.returningClients} se vratilo`}</small></div>
       <div class="kpi"><span class="label">Popunjenost</span><b>${t.occupancy == null ? '–' : pct(t.occupancy)}</b><small>${num(t.bookedHours)} od ${num(t.openHours)} h radnog vremena</small></div>
@@ -891,6 +919,8 @@ async function viewStats(v) {
     render();
   }));
   $$('[data-cid]', v).forEach((r) => r.addEventListener('click', (e) => { if (!e.target.closest('a')) clientModal(Number(r.dataset.cid)); }));
+  $('[data-next]', v)?.addEventListener('click', () => bookingModal(d.ahead.next));
+  $('[data-list="otkazano"]', v)?.addEventListener('click', () => cancelledModal(p));
 
   // Očitanje mjeseca na dodir / prelazak mišem
   const out = $('#m-readout', v);
