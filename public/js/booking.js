@@ -359,7 +359,7 @@ function renderContact() {
   $('#contact-list').innerHTML = `
     <li>${icon('telefon')}<a href="tel:${esc(tel)}">${esc(b.phone)}</a></li>
     <li>${icon('poruka')}<a href="${esc(b.whatsapp)}" target="_blank" rel="noopener">WhatsApp</a></li>
-    <li>${icon('info')}<a href="mailto:${esc(b.email)}">${esc(b.email)}</a></li>
+    <li>${icon('info')}<a href="mailto:${esc(b.email)}" data-mail>${esc(b.email)}</a></li>
     <li>${icon('srce')}<a href="${esc(b.instagramUrl)}" target="_blank" rel="noopener">${esc(b.instagram)}</a></li>
     <li>${icon('lokacija')}<a id="loc-link" data-route target="_blank" rel="noopener">${esc([b.address, b.city].filter(Boolean).join(', '))}</a></li>`;
   // Svaki dan u svom redu; jutarnji i večernji dio u istom retku
@@ -408,6 +408,53 @@ function setupMapsPick() {
       window.addEventListener('pagehide', away, { once: true });
       location.href = state.maps.google;
       setTimeout(() => { if (!left && !document.hidden) location.href = state.maps.web; }, 1500);
+      return;
+    }
+    if (e.target === dlg || e.target.closest('.mp-cancel')) dlg.close();
+  });
+}
+
+// Email: mailto na mnogim računalima otvara Outlook koji traži prijavu, pa se nudi izbor
+const ANDROID = /Android/i.test(navigator.userAgent);
+function setupMailPick() {
+  const dlg = $('#mail-pick');
+  let email = '';
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('[data-mail]');
+    if (!a) return;
+    e.preventDefault();
+    email = a.textContent.trim();
+    const to = encodeURIComponent(email);
+    const web = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}`;
+    // Android: mailto otvara Gmail; iPhone: aplikacija Gmail (ako nije instalirana, web verzija); računalo: Gmail u pregledniku
+    state.mail = { web, app: IOS ? `googlegmail:///co?to=${to}` : null };
+    Object.assign($('#ml-gmail'), { href: ANDROID ? `mailto:${email}` : web });
+    $('#ml-other').href = `mailto:${email}`;
+    $('#ml-copy').textContent = 'Kopiraj adresu';
+    dlg.showModal();
+  });
+  dlg.addEventListener('click', async (e) => {
+    if (e.target.closest('#ml-gmail')) {
+      if (state.mail?.app) {
+        e.preventDefault();
+        let left = false;
+        const away = () => { left = true; };
+        document.addEventListener('visibilitychange', away, { once: true });
+        window.addEventListener('pagehide', away, { once: true });
+        location.href = state.mail.app;
+        setTimeout(() => { if (!left && !document.hidden) location.href = state.mail.web; }, 1500);
+      }
+      return dlg.close();
+    }
+    if (e.target.closest('#ml-other')) return dlg.close();
+    if (e.target.closest('#ml-copy')) {
+      try {
+        await navigator.clipboard.writeText(email);
+        $('#ml-copy').textContent = 'Kopirano ✓';
+        setTimeout(() => dlg.close(), 900);
+      } catch {
+        $('#ml-copy').textContent = email;
+      }
       return;
     }
     if (e.target === dlg || e.target.closest('.mp-cancel')) dlg.close();
@@ -638,6 +685,7 @@ function renderEvents() {
   renderWorks();
   setupLightbox();
   setupMapsPick();
+  setupMailPick();
   try {
     state.config = await api('/api/config');
   } catch {
