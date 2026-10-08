@@ -1,9 +1,9 @@
 /* Barbara Skoko Beauty – stil iz brand_tokens.json */
-@font-face { font-family: 'Lora'; src: url('/assets/fonts/Lora-Regular.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
-@font-face { font-family: 'Lora'; src: url('/assets/fonts/Lora-Italic.ttf') format('truetype'); font-weight: 400; font-style: italic; font-display: swap; }
-@font-face { font-family: 'Poppins'; src: url('/assets/fonts/Poppins-Light.ttf') format('truetype'); font-weight: 300; font-display: swap; }
-@font-face { font-family: 'Poppins'; src: url('/assets/fonts/Poppins-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
-@font-face { font-family: 'Poppins'; src: url('/assets/fonts/Poppins-Medium.ttf') format('truetype'); font-weight: 500; font-display: swap; }
+@font-face { font-family: 'Lora'; src: url('/assets/fonts/Lora-Regular.woff2') format('woff2'), url('/assets/fonts/Lora-Regular.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Lora'; src: url('/assets/fonts/Lora-Italic.woff2') format('woff2'), url('/assets/fonts/Lora-Italic.ttf') format('truetype'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('/assets/fonts/Poppins-Light.woff2') format('woff2'), url('/assets/fonts/Poppins-Light.ttf') format('truetype'); font-weight: 300; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('/assets/fonts/Poppins-Regular.woff2') format('woff2'), url('/assets/fonts/Poppins-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Poppins'; src: url('/assets/fonts/Poppins-Medium.woff2') format('woff2'), url('/assets/fonts/Poppins-Medium.ttf') format('truetype'); font-weight: 500; font-display: swap; }
 
 :root {
   --ink: #2B2421;
