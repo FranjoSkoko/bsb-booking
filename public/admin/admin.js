@@ -230,7 +230,17 @@ function bookingModal(b) {
       </form>
     </details>
     ${b.client_id ? `<p class="small" style="margin-top:12px"><button class="btn-link" data-client="${b.client_id}">Karton klijentice</button></p>` : ''}
+    <p class="small" style="margin-top:12px"><button class="btn-link" id="b-del">Obriši termin (test ili greška)</button></p>
   `, (root) => {
+    $('#b-del', root).addEventListener('click', async () => {
+      if (!confirm('Trajno obrisati ovaj termin? Nestat će iz kalendara i analitike. Klijentici se ništa ne šalje.')) return;
+      try {
+        await api(`/api/admin/bookings/${b.id}`, { method: 'DELETE' });
+        toast('Termin je obrisan.');
+        modal.close();
+        render();
+      } catch (err) { toast(err.message); }
+    });
     $$('[data-set]', root).forEach((btn) => btn.addEventListener('click', () => {
       const s = btn.dataset.set;
       if (['otkazano', 'odbijeno'].includes(s) && !confirm(`${s === 'otkazano' ? 'Otkazati' : 'Odbiti'} termin?`)) return;
@@ -696,7 +706,15 @@ async function clientModal(id) {
     <div class="btn-row"><button class="btn btn-small" id="c-save">Spremi bilješke</button></div>
     <h3>Povijest</h3>
     <div>${c.bookings.length ? c.bookings.map((b) => `<div class="row ${['odbijeno', 'otkazano', 'nije_dosla'].includes(b.status) ? 'dim' : ''}" style="cursor:default;grid-template-columns:1fr auto"><div><div class="who">${fmtDay(b.date)} · ${hhmm(b.start_min)}</div><div class="what">${esc(b.services.map((s) => s.name).join(' + '))} · ${km(b.total_price)}</div></div><span class="status-pill st-${b.status}">${STATUS[b.status]}</span></div>`).join('') : '<div class="empty-row">Nema termina.</div>'}</div>
-    <p class="small" style="margin-top:20px"><button class="btn-link" id="c-del">Obriši podatke klijentice (na njezin zahtjev)</button></p>`, (root) => {
+    <p class="small" style="margin-top:20px"><button class="btn-link" id="c-del">Obriši podatke klijentice (na njezin zahtjev)</button></p>
+    <p class="small" style="margin-top:8px"><button class="btn-link" id="c-del-all">Obriši klijenticu i sve njezine termine (testovi)</button></p>`, (root) => {
+    $('#c-del-all', root).addEventListener('click', async () => {
+      if (!confirm(`Trajno obrisati klijenticu i ${c.bookings.length === 1 ? 'njezin termin' : `svih ${c.bookings.length} njezinih termina`}? Nestat će iz kalendara i analitike.`)) return;
+      await api(`/api/admin/clients/${id}?termini=1`, { method: 'DELETE' });
+      toast('Klijentica i termini su obrisani.');
+      modal.close();
+      render();
+    });
     $('#c-save', root).addEventListener('click', async () => {
       await api(`/api/admin/clients/${id}`, { method: 'PATCH', body: { notes: $('#c-notes', root).value } });
       toast('Bilješke spremljene.');

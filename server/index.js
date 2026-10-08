@@ -319,6 +319,20 @@ admin.patch('/bookings/:id', wrap(async (req, res) => {
   res.json(await updateBooking(Number(req.params.id), req.body, { notify: Boolean(req.body.notify) }));
 }));
 
+// Trajno brisanje termina (test ili greška) – više se ne vidi ni u kalendaru ni u analitici
+admin.delete('/bookings/:id', wrap(async (req, res) => {
+  const r = await tx(async (db) => {
+    const del = await db.query('DELETE FROM bookings WHERE id = $1 RETURNING date, status, client_id', [Number(req.params.id)]);
+    const b = del.rows[0];
+    if (b?.client_id) {
+      await db.query('DELETE FROM clients c WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM bookings WHERE client_id = c.id)', [b.client_id]);
+    }
+    return b;
+  });
+  if (r && ['na_cekanju', 'potvrdeno'].includes(r.status)) emit('slotFreed', r.date);
+  res.json({ ok: true });
+}));
+
 admin.post('/blocks', wrap(async (req, res) => {
   const { date, dateTo, from, to, reason } = req.body;
   const open = Boolean(req.body.open);
@@ -527,10 +541,12 @@ admin.patch('/clients/:id', wrap(async (req, res) => {
 }));
 
 // Brisanje podataka klijentice na zahtjev (GDPR)
+// ?termini=1: testna klijentica – obrišu se i svi njezini termini
 admin.delete('/clients/:id', wrap(async (req, res) => {
   const id = Number(req.params.id);
   await tx(async (db) => {
-    await db.query(`UPDATE bookings SET name = 'Obrisano', phone = '', email = '', note = '' WHERE client_id = $1`, [id]);
+    if (req.query.termini === '1') await db.query('DELETE FROM bookings WHERE client_id = $1', [id]);
+    else await db.query(`UPDATE bookings SET name = 'Obrisano', phone = '', email = '', note = '' WHERE client_id = $1`, [id]);
     await db.query('DELETE FROM reviews WHERE client_id = $1', [id]);
     await db.query('DELETE FROM clients WHERE id = $1', [id]);
   });
