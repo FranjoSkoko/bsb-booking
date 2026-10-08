@@ -195,6 +195,11 @@ section { padding: clamp(64px, 10vw, 112px) 0; }
 .hours { width: 100%; border-collapse: collapse; margin-top: 8px; }
 .hours td { padding: 6px 0; border-bottom: 1px solid rgba(243, 237, 231, .18); }
 .hours td:last-child { text-align: right; }
+.hours td { padding: 10px 0; }
+.hours td:last-child { white-space: nowrap; padding-left: 12px; }
+.hours .sep { color: var(--rose-light); margin: 0 2px; }
+.hours .short { display: none; }
+@media (max-width: 360px) { .hours .long { display: none; } .hours .short { display: inline; } }
 .map { width: 100%; height: 100%; min-height: 240px; border: 0; filter: grayscale(.5) sepia(.15); }
 @media (max-width: 760px) {
   .contact-grid { grid-template-columns: 1fr; grid-template-areas: "head" "list" "hours" "map" "route"; }
