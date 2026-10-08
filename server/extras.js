@@ -221,7 +221,7 @@ export function cleanExtras(input, cur) {
     }
   }
   if ('depositInfo' in input) next.depositInfo = text(input.depositInfo, 1000);
-  if ('voucherPayment' in input) next.voucherPayment = text(input.voucherPayment, 500);
+  if ('voucherBankInfo' in input) next.voucherBankInfo = text(input.voucherBankInfo, 1000);
   if ('voucherAmounts' in input) {
     const list = (Array.isArray(input.voucherAmounts) ? input.voucherAmounts : String(input.voucherAmounts).split(/[,;\s]+/))
       .map(Number).filter((n) => Number.isFinite(n) && n >= 5 && n <= 2000);

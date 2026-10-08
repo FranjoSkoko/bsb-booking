@@ -104,7 +104,7 @@ app.get('/api/config', wrap(async (req, res) => {
     },
     eventKinds: settings.features.events ? EVENT_KINDS : undefined,
     vouchers: settings.features.vouchers
-      ? { amounts: settings.extras.voucherAmounts, payment: settings.extras.voucherPayment, months: settings.extras.voucherMonths }
+      ? { amounts: settings.extras.voucherAmounts, months: settings.extras.voucherMonths }
       : undefined,
     reviews: settings.features.reviews ? await publicReviews() : undefined,
     today: nowLocal().date,

@@ -171,6 +171,8 @@ CREATE TABLE IF NOT EXISTS vouchers (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   paid_at TIMESTAMPTZ
 );
+-- Kako kupac želi platiti bon: 'salon' (osobno u salonu) ili 'racun' (uplata na račun, podaci idu WhatsAppom)
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS payment TEXT NOT NULL DEFAULT 'salon';
 CREATE TABLE IF NOT EXISTS reviews (
   id SERIAL PRIMARY KEY,
   booking_id INT UNIQUE REFERENCES bookings(id) ON DELETE CASCADE,

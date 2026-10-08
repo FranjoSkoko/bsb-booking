@@ -59,7 +59,7 @@ export const DEFAULT_SETTINGS = {
     rebookDays: { BROWS: 35, FACE: 35, MAKEUP: 0 }, // 0 = bez podsjetnika
     depositInfo: '',
     voucherAmounts: [30, 50, 100],
-    voucherPayment: 'Bon plaćate u salonu, a Barbara vam ga zatim šalje emailom.',
+    voucherBankInfo: '', // podaci za uplatu – ne prikazuju se na stranici, kupcu idu WhatsAppom
     voucherMonths: 12,
   },
   meta: {},

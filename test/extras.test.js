@@ -5,7 +5,7 @@ import { easter, holidayOn, holidaysBetween, closedHolidays } from '../server/ho
 // Moduli niže učitavaju bazu (bez spajanja) – treba im samo adresa
 process.env.DATABASE_URL ||= 'postgres://test@localhost:1/test';
 const { rebookPlan } = await import('../server/rebook.js');
-const { normalizeCode, newCode, addMonths } = await import('../server/vouchers.js');
+const { normalizeCode, newCode, addMonths, bankMessage, bankWhatsApp } = await import('../server/vouchers.js');
 const { shortName } = await import('../server/reviews.js');
 
 test('Uskrs (zapadni) za više godina', () => {
@@ -51,4 +51,13 @@ test('recenzija: ime i početno slovo prezimena', () => {
   assert.equal(shortName('Ana Marija Šimić'), 'Ana Š.');
   assert.equal(shortName('Iva'), 'Iva');
   assert.equal(shortName(''), 'Klijentica');
+});
+
+test('bon: poruka s podacima za uplatu ide na kupčev WhatsApp', () => {
+  const v = { buyer_name: 'Ana Primjer', buyer_phone: '063 222 333', amount: '50.00', code: 'BSB-7K2M-Q9XA' };
+  const msg = bankMessage(v, 'Broj računa: 1234');
+  assert.match(msg, /^Bok Ana, hvala na narudžbi poklon bona od 50 KM!/);
+  assert.match(msg, /Broj računa: 1234\nIznos: 50 KM\nOpis plaćanja: Poklon bon BSB-7K2M-Q9XA/);
+  assert.ok(bankWhatsApp(v, 'x').startsWith('https://wa.me/38763222333?text=Bok%20Ana'));
+  assert.equal(bankWhatsApp({ ...v, buyer_phone: '' }, 'x'), '');
 });
