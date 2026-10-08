@@ -371,7 +371,13 @@ function renderContact() {
   $('#hours').innerHTML = order.map((d) => `<tr><td>${DANI[d]}</td><td>${span(state.config.hours[d])}</td></tr>`).join('');
   const place = b.mapQuery || [b.address, b.city, 'Bosna i Hercegovina'].filter(Boolean).join(', ');
   const route = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(place)}`;
-  $('#map').src = `https://maps.google.com/maps?q=${encodeURIComponent(place)}&z=17&hl=hr&output=embed`;
+  // Karta se učita odmah nakon ostatka stranice (ne tek kad se do nje doskrola), pa je spremna kad se do nje dođe
+  const map = $('#map');
+  const loadMap = () => {
+    map.addEventListener('load', () => map.classList.add('ready'), { once: true });
+    map.src = `https://maps.google.com/maps?q=${encodeURIComponent(place)}&z=17&hl=hr&output=embed`;
+  };
+  if (document.readyState === 'complete') loadMap(); else window.addEventListener('load', loadMap, { once: true });
   $('#map-link').href = route;
   $('#route-btn').href = route;
   $('#loc-link').href = route;
