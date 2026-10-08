@@ -7,11 +7,11 @@ export const relayConfigured = () => Boolean(process.env.MAIL_RELAY_URL && proce
 const toBase64 = (content) => Buffer.isBuffer(content) ? content.toString('base64') : Buffer.from(String(content), 'utf8').toString('base64');
 
 /** Pošalji jedan mail preko skripte. Baca grešku ako skripta ne potvrdi slanje. */
-export async function sendViaRelay({ to, subject, html, text, attachments, replyTo, name }, {
+export async function sendViaRelay({ to, subject, html, text, attachments, replyTo, from, name }, {
   url = process.env.MAIL_RELAY_URL, key = process.env.MAIL_RELAY_KEY, timeoutMs = 30000,
 } = {}) {
   const body = {
-    key, to, subject, html, text, replyTo, name,
+    key, to, subject, html, text, replyTo, from, name,
     attachments: (attachments || []).map((a) => ({
       filename: a.filename,
       // Apps Script ne voli parametre u tipu (npr. "; charset=utf-8")

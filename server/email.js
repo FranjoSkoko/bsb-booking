@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
 import { relayConfigured, sendViaRelay } from './mailrelay.js';
-import { q } from './db.js';
+import { q, getSettings } from './db.js';
 import { formatDateHr, toHHMM } from './time.js';
 import { bookingIcs } from './ics.js';
 import { actionLink } from './auth.js';
@@ -270,7 +270,9 @@ export async function sendRaw({ to, subject, html, text, attachments, kind = 'os
   }
   try {
     if (relay) {
-      await sendViaRelay({ to, subject, html, text, attachments, replyTo, name: 'Barbara Skoko Beauty' });
+      // Skripta šalje s te adrese ako je u Gmailu dodana kao „Pošalji poštu kao”, inače s Gmaila
+      const from = (await getSettings()).business.email;
+      await sendViaRelay({ to, subject, html, text, attachments, replyTo, from, name: 'Barbara Skoko Beauty' });
     } else {
       await t.sendMail({
         from: process.env.MAIL_FROM || `Barbara Skoko Beauty <${process.env.SMTP_USER}>`,

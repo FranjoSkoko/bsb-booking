@@ -31,12 +31,13 @@ after(() => server.close());
 
 test('šalje mail preko skripte i prati preusmjeravanje', async () => {
   const out = await sendViaRelay({
-    to: 'ana@example.com', subject: 'Termin', html: '<p>Bok</p>', text: 'Bok', replyTo: 'b@example.com', name: 'BSB',
+    to: 'ana@example.com', subject: 'Termin', html: '<p>Bok</p>', text: 'Bok', replyTo: 'b@example.com', from: 'info@example.com', name: 'BSB',
     attachments: [{ filename: 'termin.ics', content: 'BEGIN:VCALENDAR\nČ', contentType: 'text/calendar; charset=utf-8; method=PUBLISH' }],
   }, { url: `${base}/exec`, key: 'tajna' });
   assert.equal(out.ok, true);
   assert.equal(last.to, 'ana@example.com');
   assert.equal(last.replyTo, 'b@example.com');
+  assert.equal(last.from, 'info@example.com');
   assert.equal(last.attachments[0].contentType, 'text/calendar');
   assert.equal(Buffer.from(last.attachments[0].content, 'base64').toString('utf8'), 'BEGIN:VCALENDAR\nČ');
 });

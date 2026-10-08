@@ -14,7 +14,13 @@ function doPost(e) {
         return Utilities.newBlob(Utilities.base64Decode(a.content), a.contentType, a.filename);
       });
     }
-    MailApp.sendEmail(d.to, d.subject, d.text || '', opcije);
+    // Adresa na domeni (npr. info@...) radi samo ako je u Gmailu dodana pod „Pošalji poštu kao”
+    if (d.from && GmailApp.getAliases().map(function (a) { return a.toLowerCase(); }).indexOf(String(d.from).toLowerCase()) !== -1) {
+      opcije.from = d.from;
+      GmailApp.sendEmail(d.to, d.subject, d.text || '', opcije);
+    } else {
+      MailApp.sendEmail(d.to, d.subject, d.text || '', opcije);
+    }
     return odgovor({ ok: true, preostaloDanas: MailApp.getRemainingDailyQuota() });
   } catch (err) {
     return odgovor({ ok: false, error: String(err) });

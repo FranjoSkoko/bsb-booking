@@ -9,7 +9,7 @@ async function vapid() {
   const keys = process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY
     ? { publicKey: process.env.VAPID_PUBLIC_KEY, privateKey: process.env.VAPID_PRIVATE_KEY }
     : await getSecret('vapid', () => webpush.generateVAPIDKeys());
-  const email = (await getSettings()).business.email || 'barbaraskokobeauty@gmail.com';
+  const email = (await getSettings()).business.email || 'info@barbaraskokobeauty.com';
   webpush.setVapidDetails(`mailto:${email}`, keys.publicKey, keys.privateKey);
   configured = keys;
   return keys;
