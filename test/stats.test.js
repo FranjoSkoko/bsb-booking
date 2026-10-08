@@ -56,10 +56,12 @@ test('kasno otkazivanje: manje od 24 h prije termina', () => {
 });
 
 test('radno vrijeme: zatvorena nedjelja i blokade', () => {
-  // pon 12. – ned 18. 10.: 6 dana × 10 h
-  assert.equal(openMinutes('2026-10-12', '2026-10-18', hours), 6 * 600);
+  // pon 12. – ned 18. 10.: 6 dana × 8 h (08:30–12:30 i 16:30–20:30)
+  assert.equal(openMinutes('2026-10-12', '2026-10-18', hours), 6 * 480);
   const blocks = [{ date: '2026-10-12', start_min: null }, { date: '2026-10-13', start_min: 9 * 60, end_min: 11 * 60 }];
-  assert.equal(openMinutes('2026-10-12', '2026-10-18', hours, blocks), 4 * 600 + 480);
+  assert.equal(openMinutes('2026-10-12', '2026-10-18', hours, blocks), 4 * 480 + 360);
+  // blokada preko pauze (12:00–17:00) oduzima samo radne minute: 30 + 30
+  assert.equal(openMinutes('2026-10-13', '2026-10-13', hours, [{ date: '2026-10-13', start_min: 720, end_min: 1020 }]), 420);
 });
 
 test('grafikon: barem 12 mjeseci, odrađeno i dogovoreno odvojeno', () => {

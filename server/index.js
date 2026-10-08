@@ -321,6 +321,8 @@ admin.patch('/bookings/:id', wrap(async (req, res) => {
 
 admin.post('/blocks', wrap(async (req, res) => {
   const { date, dateTo, from, to, reason } = req.body;
+  const open = Boolean(req.body.open);
+  if (open && (!from || !to)) throw new UserError('Upišite od kada do kada su dodatni termini.');
   if (!parseYmd(date)) throw new UserError('Odaberite datum.');
   const last = dateTo && parseYmd(dateTo) ? dateTo : date;
   if (parseYmd(last) < parseYmd(date) || (parseYmd(last) - parseYmd(date)) / 86400000 > 366) throw new UserError('Neispravan raspon datuma.');
@@ -330,15 +332,16 @@ admin.post('/blocks', wrap(async (req, res) => {
   const created = [];
   for (let t = parseYmd(date); t <= parseYmd(last); t += 86400000) {
     const d = new Date(t).toISOString().slice(0, 10);
-    const r = await q('INSERT INTO blocks (date, start_min, end_min, reason) VALUES ($1,$2,$3,$4) RETURNING *', [d, s, e, String(reason || '').slice(0, 200)]);
+    const r = await q('INSERT INTO blocks (date, start_min, end_min, reason, open) VALUES ($1,$2,$3,$4,$5) RETURNING *', [d, s, e, String(reason || '').slice(0, 200), open]);
     created.push(r.rows[0]);
+    if (open) emit('slotFreed', d); // lista čekanja: možda je sad netko dobio termin
   }
   res.status(201).json(created);
 }));
 
 admin.delete('/blocks/:id', wrap(async (req, res) => {
-  const r = await q('DELETE FROM blocks WHERE id = $1 RETURNING date', [Number(req.params.id)]);
-  if (r.rowCount) emit('slotFreed', r.rows[0].date);
+  const r = await q('DELETE FROM blocks WHERE id = $1 RETURNING date, open', [Number(req.params.id)]);
+  if (r.rowCount && !r.rows[0].open) emit('slotFreed', r.rows[0].date);
   res.json({ ok: true });
 }));
 
@@ -398,6 +401,12 @@ admin.put('/settings', wrap(async (req, res) => {
       const c = toMin(h.close);
       if (o == null || c == null || c <= o) throw new UserError('Provjerite radno vrijeme.');
       next[d] = { open: toHHMM(o), close: toHHMM(c) };
+      if (h.breakFrom || h.breakTo) {
+        const bf = toMin(h.breakFrom);
+        const bt = toMin(h.breakTo);
+        if (bf == null || bt == null || !(o < bf && bf < bt && bt < c)) throw new UserError('Provjerite pauzu: mora biti unutar radnog vremena.');
+        Object.assign(next[d], { breakFrom: toHHMM(bf), breakTo: toHHMM(bt) });
+      }
     }
     await saveSetting('hours', next);
   }
@@ -447,7 +456,7 @@ admin.get('/stats', wrap(async (req, res) => {
   const settings = await getSettings();
   const [bookings, blocks, first, comeback] = await Promise.all([
     q('SELECT * FROM bookings WHERE date BETWEEN $1 AND $2', [qFrom, qTo]),
-    q('SELECT date, start_min, end_min FROM blocks WHERE date BETWEEN $1 AND $2', [from, to]),
+    q('SELECT date, start_min, end_min FROM blocks WHERE date BETWEEN $1 AND $2 AND NOT open', [from, to]),
     q(`SELECT client_id, min(date) AS d FROM bookings
        WHERE status = 'potvrdeno' AND client_id IS NOT NULL AND (date < $1 OR (date = $1 AND start_min <= $2))
        GROUP BY client_id`, [now.date, now.min]),

@@ -64,10 +64,21 @@ export async function busyMap(db, from, to, { excludeId = null } = {}) {
     [from, to, BUSY_STATUSES, excludeId]
   );
   for (const r of b.rows) push(r.date, r.start_min, r.start_min + r.duration);
-  const bl = await db.query('SELECT date, start_min, end_min FROM blocks WHERE date BETWEEN $1 AND $2', [from, to]);
+  const bl = await db.query('SELECT date, start_min, end_min FROM blocks WHERE date BETWEEN $1 AND $2 AND NOT open', [from, to]);
   for (const r of bl.rows) push(r.date, r.start_min ?? 0, r.end_min ?? 1440);
   return map;
 }
+
+/** Dodatno otvorena vremena po danima: { 'YYYY-MM-DD': [[start, end]] } */
+export async function extraMap(db, from, to) {
+  const map = {};
+  const r = await db.query('SELECT date, start_min, end_min FROM blocks WHERE date BETWEEN $1 AND $2 AND open', [from, to]);
+  for (const x of r.rows) (map[x.date] ||= []).push([x.start_min, x.end_min]);
+  return map;
+}
+
+// Na praznik se nudi samo ono što je Barbara dodatno otvorila
+const hoursFor = (settings, holiday) => (holiday ? {} : settings.hours);
 
 export async function resolveServices(ids, { allowInactive = false } = {}) {
   const all = await getServices({ onlyActive: !allowInactive });
@@ -83,9 +94,10 @@ export async function slotsFor(serviceIds, date) {
   const settings = await getSettings();
   const services = await resolveServices(serviceIds);
   const { duration, step } = combine(services);
-  if (closedHolidays(settings, date, date)[date]) return [];
+  const holiday = closedHolidays(settings, date, date)[date];
   const busy = (await busyMap({ query: q }, date, date))[date] || [];
-  return daySlots({ date, hours: settings.hours, duration, step, busy, rules: settings.rules });
+  const extra = (await extraMap({ query: q }, date, date))[date] || [];
+  return daySlots({ date, hours: hoursFor(settings, holiday), duration, step, busy, extra, rules: settings.rules });
 }
 
 /** Za kalendar: koji dani u idućih N dana imaju barem jedan slobodan termin. */
@@ -96,11 +108,12 @@ export async function availableDays(serviceIds) {
   const now = nowLocal();
   const to = addDays(now.date, settings.rules.maxDaysAhead);
   const map = await busyMap({ query: q }, now.date, to);
+  const extras = await extraMap({ query: q }, now.date, to);
   const holidays = closedHolidays(settings, now.date, to);
   const days = {};
   for (let i = 0; i <= settings.rules.maxDaysAhead; i++) {
     const date = addDays(now.date, i);
-    days[date] = holidays[date] ? 0 : daySlots({ date, hours: settings.hours, duration, step, busy: map[date] || [], rules: settings.rules, now }).length;
+    days[date] = daySlots({ date, hours: hoursFor(settings, holidays[date]), duration, step, busy: map[date] || [], extra: extras[date] || [], rules: settings.rules, now }).length;
   }
   return { from: now.date, to, days, holidays };
 }
@@ -153,7 +166,7 @@ export async function createBooking(input, { fromAdmin = false } = {}) {
   const start = toMin(String(input.time || ''));
   if (!parseYmd(date) || start == null) throw new UserError('Odaberite datum i vrijeme.');
   const holiday = !fromAdmin && closedHolidays(settings, date, date)[date];
-  if (holiday) throw new UserError(`Taj dan salon ne radi (${holiday}). Odaberite drugi datum.`, 409);
+  if (holiday && !((await extraMap({ query: q }, date, date))[date] || []).length) throw new UserError(`Taj dan salon ne radi (${holiday}). Odaberite drugi datum.`, 409);
   const { duration: baseDuration, price: basePrice, step } = combine(services);
   const duration = fromAdmin && input.duration ? Math.max(15, Math.min(600, Number(input.duration))) : baseDuration;
   const price = fromAdmin && input.price != null && input.price !== '' ? Number(input.price) : basePrice;
@@ -168,7 +181,8 @@ export async function createBooking(input, { fromAdmin = false } = {}) {
       const clash = busy.some((b) => start < b.end && b.start < start + duration);
       if (clash && !input.force) throw new UserError('U to vrijeme već postoji termin ili blokada.', 409);
     } else {
-      const free = daySlots({ date, hours: settings.hours, duration, step, busy, rules: settings.rules });
+      const extra = (await extraMap(db, date, date))[date] || [];
+      const free = daySlots({ date, hours: hoursFor(settings, holiday), duration, step, busy, extra, rules: settings.rules });
       if (!free.includes(start)) throw new UserError('Taj termin je upravo zauzet. Odaberite drugo vrijeme.', 409);
     }
     const clientId = await upsertClient(db, contact);

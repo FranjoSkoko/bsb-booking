@@ -29,6 +29,8 @@ async function api(url, opts = {}) {
   return data;
 }
 
+const hoursText = (h) => (h.breakFrom ? `${h.open}–${h.breakFrom}, ${h.breakTo}–${h.close}` : `${h.open}–${h.close}`);
+
 function toast(msg) {
   const t = $('#toast');
   t.textContent = msg;
@@ -142,6 +144,13 @@ function bookingRow(b, { showDate = false, quick = false } = {}) {
 }
 
 function blockRow(bl) {
+  if (bl.open) {
+    return `<div class="row block open">
+    <div class="time">${hhmm(bl.start_min)}<small>– ${hhmm(bl.end_min)}</small></div>
+    <div><div class="who">Dodatni termini</div><div class="what">${esc(bl.reason || 'Otvoreno za rezervacije')}</div></div>
+    <div class="actions"><button class="btn btn-small btn-outline" data-unblock="${bl.id}" data-open-row>Ukloni</button></div>
+  </div>`;
+  }
   return `<div class="row block">
     <div class="time">${bl.start_min == null ? 'cijeli' : hhmm(bl.start_min)}<small>${bl.start_min == null ? 'dan' : '– ' + hhmm(bl.end_min)}</small></div>
     <div><div class="who">Blokirano</div><div class="what">${esc(bl.reason || 'Nedostupno')}</div></div>
@@ -164,9 +173,10 @@ function wireRows(root, bookings) {
     });
   });
   $$('[data-unblock]', root).forEach((btn) => btn.addEventListener('click', async () => {
-    if (!confirm('Ukloniti blokadu?')) return;
+    const open = 'openRow' in btn.dataset;
+    if (!confirm(open ? 'Ukloniti dodatne termine? Već rezervirani termini ostaju.' : 'Ukloniti blokadu?')) return;
     await api(`/api/admin/blocks/${btn.dataset.unblock}`, { method: 'DELETE' });
-    toast('Blokada uklonjena.');
+    toast(open ? 'Dodatni termini uklonjeni.' : 'Blokada uklonjena.');
     render();
   }));
 }
@@ -366,7 +376,7 @@ async function viewCalendar(v) {
       <button class="btn btn-small btn-outline" data-nav="danas">Danas</button>
       <button class="round" data-nav="${next}" aria-label="Naprijed">›</button>
     </div>
-    <div class="toolbar"><h2 style="margin:0">${label}</h2><span class="spacer"></span><button class="btn btn-small btn-outline" data-action="block">Blokiraj vrijeme</button></div>`;
+    <div class="toolbar"><h2 style="margin:0">${label}</h2><span class="spacer"></span><button class="btn btn-small btn-outline" data-action="open">+ Dodatni termini</button><button class="btn btn-small btn-outline" data-action="block">Blokiraj vrijeme</button></div>`;
 
   if (state.calMode === 'tjedan') {
     const from = state.weekStart;
@@ -379,7 +389,9 @@ async function viewCalendar(v) {
       const bls = blocks.filter((b) => b.date === d);
       const items = [...list.map((b) => ({ k: b.start_min, html: bookingRow(b) })), ...bls.map((b) => ({ k: b.start_min ?? -1, html: blockRow(b) }))].sort((a, b) => a.k - b.k);
       const h = hours[dow(d)];
-      return `<div class="day-head"><h3>${fmtDay(d)}${d === state.today ? ' · danas' : ''}</h3><span class="label">${holidays[d] ? `praznik · ${esc(holidays[d])}` : h ? `${h.open}–${h.close}` : 'zatvoreno'}</span></div>
+      const extra = bls.filter((b) => b.open).map((b) => `${hhmm(b.start_min)}–${hhmm(b.end_min)}`).join(', ');
+      const base = holidays[d] ? `praznik · ${esc(holidays[d])}` : h ? hoursText(h) : 'zatvoreno';
+      return `<div class="day-head"><h3>${fmtDay(d)}${d === state.today ? ' · danas' : ''}</h3><span class="label">${base}${extra ? ` · + ${extra}` : ''}</span></div>
         <div class="panel">${items.length ? items.map((i) => i.html).join('') : '<div class="empty-row">Slobodno.</div>'}</div>`;
     }).join('');
     wireRows(v, bookings);
@@ -395,10 +407,11 @@ async function viewCalendar(v) {
       const d = `${state.month}-${String(i).padStart(2, '0')}`;
       const list = bookings.filter((b) => b.date === d);
       const pend = list.filter((b) => b.status === 'na_cekanju').length;
-      const blocked = blocks.some((b) => b.date === d && b.start_min == null);
-      const closed = !state.settings.hours[dow(d)] || blocked || Boolean(holidays[d]);
+      const blocked = blocks.some((b) => b.date === d && b.start_min == null && !b.open);
+      const extraOpen = blocks.some((b) => b.date === d && b.open);
+      const closed = !extraOpen && (!state.settings.hours[dow(d)] || blocked || Boolean(holidays[d]));
       cells += `<button class="cell ${d === state.today ? 'today' : ''} ${closed ? 'closed' : ''}" data-day="${d}"><span class="n">${i}</span>
-        ${list.length ? `<span class="c">${list.length} ${list.length === 1 ? 'termin' : 'termina'}</span>` : ''}${pend ? `<span class="p">${pend} na čekanju</span>` : ''}${blocked ? '<span class="p">blokirano</span>' : ''}${holidays[d] ? `<span class="p">${esc(holidays[d])}</span>` : ''}</button>`;
+        ${list.length ? `<span class="c">${list.length} ${list.length === 1 ? 'termin' : 'termina'}</span>` : ''}${pend ? `<span class="p">${pend} na čekanju</span>` : ''}${blocked ? '<span class="p">blokirano</span>' : ''}${extraOpen ? '<span class="c">+ dodatno</span>' : ''}${holidays[d] ? `<span class="p">${esc(holidays[d])}</span>` : ''}</button>`;
     }
     v.innerHTML = toolbar(`${MJ_NOM[m - 1]} ${y}.`, -1, 1) + `<div class="month">${cells}</div>`;
     $$('[data-day]', v).forEach((c) => c.addEventListener('click', () => {
@@ -416,6 +429,37 @@ async function viewCalendar(v) {
     render();
   }));
   $('[data-action="block"]', v).addEventListener('click', blockModal);
+  $('[data-action="open"]', v).addEventListener('click', openModal);
+}
+
+// Barbara otvara dodatno vrijeme za rezervacije na određeni dan (npr. u pauzi ili nedjeljom)
+function openModal() {
+  modal.open(`
+    <div class="modal-head"><h2>Dodatni <em>termini</em></h2><button class="close-x" data-close aria-label="Zatvori">×</button></div>
+    <p class="small muted">Otvorite dodatno vrijeme za rezervacije izvan redovnog radnog vremena, npr. u pauzi, subotom poslijepodne ili nedjeljom. Klijentice odmah vide nove termine.</p>
+    <form id="open-form" class="form-grid">
+      <div class="grid2">
+        <div class="field compact"><label>Od datuma</label><input type="date" name="date" value="${state.today}" required></div>
+        <div class="field compact"><label>Do datuma</label><input type="date" name="dateTo" value="${state.today}"></div>
+      </div>
+      <div class="grid2">
+        <div class="field compact"><label>Od</label><input type="time" name="from" value="12:30" step="900" required></div>
+        <div class="field compact"><label>Do</label><input type="time" name="to" value="16:30" step="900" required></div>
+      </div>
+      <div class="field compact"><label>Napomena (nije obavezno)</label><input name="reason" placeholder="npr. mama čuva malu"></div>
+      <button class="btn" type="submit">Otvori termine</button>
+    </form>`, (root) => {
+    const f = $('#open-form', root);
+    f.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const r = await api('/api/admin/blocks', { method: 'POST', body: { open: true, date: f.date.value, dateTo: f.dateTo.value || f.date.value, from: f.from.value, to: f.to.value, reason: f.reason.value } });
+        toast(`Dodatni termini otvoreni (${r.length} ${r.length === 1 ? 'dan' : 'dana'}).`);
+        modal.close();
+        render();
+      } catch (err) { toast(err.message); }
+    });
+  });
 }
 
 function blockModal() {
@@ -1051,8 +1095,12 @@ async function viewSettings(v) {
       <div class="hours-edit" data-day="${d}">
         <span style="text-transform:capitalize">${DANI[d]}</span>
         <label class="check small"><input type="checkbox" class="h-open" ${hours[d] ? 'checked' : ''}> radi</label>
-        <input type="time" class="h-from" value="${hours[d]?.open || '09:00'}" step="1800">
-        <input type="time" class="h-to" value="${hours[d]?.close || '19:00'}" step="1800">
+        <input type="time" class="h-from" value="${hours[d]?.open || '08:30'}" step="1800" aria-label="Od">
+        <input type="time" class="h-to" value="${hours[d]?.close || '20:30'}" step="1800" aria-label="Do">
+        <span class="h-sp"></span>
+        <label class="check small h-pause-lbl"><input type="checkbox" class="h-pause" ${hours[d]?.breakFrom ? 'checked' : ''}> pauza</label>
+        <input type="time" class="h-bfrom" value="${hours[d]?.breakFrom || '12:30'}" step="1800" aria-label="Pauza od">
+        <input type="time" class="h-bto" value="${hours[d]?.breakTo || '16:30'}" step="1800" aria-label="Pauza do">
       </div>`).join('')}
     </div>
 
@@ -1179,7 +1227,11 @@ async function viewSettings(v) {
   $('#settings-save', v).addEventListener('click', async () => {
     const hrs = {};
     $$('.hours-edit', v).forEach((row) => {
-      hrs[row.dataset.day] = $('.h-open', row).checked ? { open: $('.h-from', row).value, close: $('.h-to', row).value } : null;
+      hrs[row.dataset.day] = !$('.h-open', row).checked ? null : {
+        open: $('.h-from', row).value,
+        close: $('.h-to', row).value,
+        ...($('.h-pause', row).checked ? { breakFrom: $('.h-bfrom', row).value, breakTo: $('.h-bto', row).value } : {}),
+      };
     });
     try {
       state.settings = await api('/api/admin/settings', {
