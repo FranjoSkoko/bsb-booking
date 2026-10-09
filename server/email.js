@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
 import { readFileSync } from 'node:fs';
 import { relayConfigured, relaySupportsInline, sendViaRelay } from './mailrelay.js';
-import { q, getSettings } from './db.js';
+import { q } from './db.js';
 import { formatDateHr, toHHMM } from './time.js';
 import { bookingIcs } from './ics.js';
 import { actionLink } from './auth.js';
