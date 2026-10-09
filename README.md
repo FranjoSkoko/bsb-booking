@@ -94,8 +94,8 @@ Skripta šalje mailove s Barbarinog Gmaila preko HTTPS-a, besplatno, do oko 100 
 Ako kasnije promijenite skriptu, napravite **Implementiraj → Upravljanje implementacijama → Uredi → Nova verzija**, da URL ostane isti.
 
 ### Adresa info@barbaraskokobeauty.com
-Mail na `info@` Cloudflare (Email Routing) prosljeđuje u Barbarin Gmail. Klijentice vide i odgovaraju na `info@` (Postavke → Email salona).
-Da mailovi i odlaze s te adrese, u Gmailu je dodaje **Postavke → Računi i uvoz → Pošalji poštu kao** (SMTP `smtp.gmail.com`, port 587, Gmail adresa i App password); skripta tada šalje s nje, a dok nije dodana, šalje s Gmaila.
+Rezervna adresa: mail na `info@` Cloudflare (Email Routing) prosljeđuje u Barbarin Gmail. Glavna adresa salona je `barbaraskokobeauty@gmail.com` (Postavke → Email salona); nju klijentice vide na stranici i na nju odgovaraju.
+Mailovi aplikacije odlaze s Gmaila. Skripta bi slala s adrese salona samo ako je ona na domeni i dodana u Gmailu pod **Postavke → Računi i uvoz → Pošalji poštu kao**.
 Obavijesti Barbari idu izravno na Gmail preko varijable `ADMIN_EMAIL=barbaraskokobeauty@gmail.com`, jer Gmail ne prikazuje u Primljenoj pošti vlastite mailove koji mu se vrate preko prosljeđivanja.
 
 ### Gmail App password (samo za SMTP)
