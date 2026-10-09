@@ -1,10 +1,10 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { sendViaRelay } from '../server/mailrelay.js';
+import { sendViaRelay, relaySupportsInline } from '../server/mailrelay.js';
 
 // Lažni Apps Script: POST /exec preusmjeri (302) na /echo, kao pravi Google.
-let server, base, last;
+let server, base, last, verzija;
 before(async () => {
   server = http.createServer((req, res) => {
     let data = '';
@@ -16,7 +16,7 @@ before(async () => {
       } else if (req.method === 'GET' && req.url === '/echo') {
         const ok = last.key === 'tajna';
         res.writeHead(200, { 'Content-Type': 'application/json' })
-          .end(JSON.stringify(ok ? { ok: true, preostaloDanas: 99 } : { ok: false, error: 'Pogrešan ključ' }));
+          .end(JSON.stringify(ok ? { ok: true, preostaloDanas: 99, ...(verzija ? { verzija } : {}) } : { ok: false, error: 'Pogrešan ključ' }));
       } else if (req.url === '/html') {
         res.writeHead(200, { 'Content-Type': 'text/html' }).end('<html>Prijava</html>');
       } else {
@@ -48,4 +48,19 @@ test('pogrešan ključ baca grešku', async () => {
 
 test('odgovor koji nije JSON daje jasnu poruku', async () => {
   await assert.rejects(sendViaRelay({ to: 'a@b.c', subject: 's', html: 'h' }, { url: `${base}/html`, key: 'tajna' }), /web-aplikacija/);
+});
+
+test('logo u samom mailu tek kad skripta javi verziju 2', async () => {
+  verzija = undefined;
+  await sendViaRelay({ to: 'a@b.c', subject: 's', html: 'h' }, { url: `${base}/exec`, key: 'tajna' });
+  assert.equal(relaySupportsInline(), false);
+  verzija = 2;
+  await sendViaRelay({
+    to: 'a@b.c', subject: 's', html: '<img src="cid:bsb-logo">',
+    inlineImages: [{ cid: 'bsb-logo', filename: 'logo.png', contentType: 'image/png', content: Buffer.from([137, 80, 78, 71]) }],
+  }, { url: `${base}/exec`, key: 'tajna' });
+  assert.equal(relaySupportsInline(), true);
+  assert.equal(last.inlineImages[0].cid, 'bsb-logo');
+  assert.deepEqual([...Buffer.from(last.inlineImages[0].content, 'base64')], [137, 80, 78, 71]);
+  verzija = undefined;
 });

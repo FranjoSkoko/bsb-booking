@@ -9,6 +9,13 @@ function doPost(e) {
     if (d.key !== KLJUC) return odgovor({ ok: false, error: 'Pogrešan ključ' });
     const opcije = { htmlBody: d.html, name: d.name || 'Barbara Skoko Beauty' };
     if (d.replyTo) opcije.replyTo = d.replyTo;
+    // Slike u samom mailu (logo), da se vide i kad program za mail blokira slike s interneta
+    if (d.inlineImages && d.inlineImages.length) {
+      opcije.inlineImages = {};
+      d.inlineImages.forEach(function (i) {
+        opcije.inlineImages[i.cid] = Utilities.newBlob(Utilities.base64Decode(i.content), i.contentType, i.filename);
+      });
+    }
     if (d.attachments && d.attachments.length) {
       opcije.attachments = d.attachments.map(function (a) {
         return Utilities.newBlob(Utilities.base64Decode(a.content), a.contentType, a.filename);
@@ -21,7 +28,7 @@ function doPost(e) {
     } else {
       MailApp.sendEmail(d.to, d.subject, d.text || '', opcije);
     }
-    return odgovor({ ok: true, preostaloDanas: MailApp.getRemainingDailyQuota() });
+    return odgovor({ ok: true, verzija: 2, preostaloDanas: MailApp.getRemainingDailyQuota() });
   } catch (err) {
     return odgovor({ ok: false, error: String(err) });
   }
