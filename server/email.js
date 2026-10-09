@@ -1,6 +1,5 @@
 import nodemailer from 'nodemailer';
-import { readFileSync } from 'node:fs';
-import { relayConfigured, relaySupportsInline, sendViaRelay } from './mailrelay.js';
+import { relayConfigured, sendViaRelay } from './mailrelay.js';
 import { q } from './db.js';
 import { formatDateHr, toHHMM } from './time.js';
 import { bookingIcs } from './ics.js';
@@ -198,20 +197,8 @@ const TEMPLATES = {
   }),
 };
 
+// Logo je slika sa stranice (ne umetnuta u mail), da Gmail ne prikazuje privitak logo.png ispod poruke
 const LOGO_PATH = '/assets/logo/email_logo.png';
-const LOGO_CID = 'bsb-logo';
-let logoPng;
-const logoFile = () => (logoPng ??= readFileSync(new URL(`../public${LOGO_PATH}`, import.meta.url)));
-
-/** Logo umetnut u sam mail: vidi se odmah, i kad program za mail blokira slike s interneta. */
-function inlineLogo(html) {
-  const url = `${baseUrl()}${LOGO_PATH}`;
-  if (!html || !html.includes(url)) return { html, inlineImages: [] };
-  return {
-    html: html.split(`src="${url}"`).join(`src="cid:${LOGO_CID}"`),
-    inlineImages: [{ cid: LOGO_CID, filename: 'logo.png', contentType: 'image/png', content: logoFile() }],
-  };
-}
 
 function renderHtml({ subject, lines }, business) {
   const base = baseUrl();
@@ -286,14 +273,11 @@ export async function sendRaw({ to, subject, html, text, attachments, kind = 'os
   }
   try {
     if (relay) {
-      const inl = relaySupportsInline() ? inlineLogo(html) : { html, inlineImages: [] };
-      await sendViaRelay({ to, subject, html: inl.html, text, attachments, inlineImages: inl.inlineImages, replyTo, name: 'Barbara Skoko Beauty' });
+      await sendViaRelay({ to, subject, html, text, attachments, replyTo, name: 'Barbara Skoko Beauty' });
     } else {
-      const inl = inlineLogo(html);
       await t.sendMail({
         from: process.env.MAIL_FROM || `Barbara Skoko Beauty <${process.env.SMTP_USER}>`,
-        to, subject, html: inl.html, text, replyTo,
-        attachments: [...(attachments || []), ...inl.inlineImages.map((i) => ({ filename: i.filename, content: i.content, contentType: i.contentType, cid: i.cid }))],
+        to, subject, html, text, replyTo, attachments,
       });
     }
     await q('INSERT INTO email_log (booking_id, kind, to_addr, subject, status) VALUES ($1,$2,$3,$4,$5)', [bookingId, kind, to, subject, 'poslano']);
