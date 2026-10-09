@@ -286,10 +286,8 @@ export async function sendRaw({ to, subject, html, text, attachments, kind = 'os
   }
   try {
     if (relay) {
-      // Skripta šalje s te adrese ako je u Gmailu dodana kao „Pošalji poštu kao”, inače s Gmaila
-      const from = (await getSettings()).business.email;
       const inl = relaySupportsInline() ? inlineLogo(html) : { html, inlineImages: [] };
-      await sendViaRelay({ to, subject, html: inl.html, text, attachments, inlineImages: inl.inlineImages, replyTo, from, name: 'Barbara Skoko Beauty' });
+      await sendViaRelay({ to, subject, html: inl.html, text, attachments, inlineImages: inl.inlineImages, replyTo, name: 'Barbara Skoko Beauty' });
     } else {
       const inl = inlineLogo(html);
       await t.sendMail({
