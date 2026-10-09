@@ -215,9 +215,9 @@ export async function initDb() {
   const old = { open: '09:00', close: '19:00' };
   const oldHours = JSON.stringify({ 0: null, 1: old, 2: old, 3: old, 4: old, 5: old, 6: old });
   await q(`UPDATE settings SET value = $1 WHERE key = 'hours' AND value = $2::jsonb`, [JSON.stringify(DEFAULT_SETTINGS.hours), oldHours]);
-  // Kontakt email prešao s Gmaila na adresu na domeni; ručno upisana druga adresa se ne dira
+  // Kontakt email je opet Gmail (info@ na domeni ostaje samo rezerva); ručno upisana druga adresa se ne dira
   await q(`UPDATE settings SET value = jsonb_set(value, '{email}', to_jsonb($1::text)) WHERE key = 'business' AND lower(value->>'email') = $2`,
-    [DEFAULT_SETTINGS.business.email, 'barbaraskokobeauty@gmail.com']);
+    [DEFAULT_SETTINGS.business.email, 'info@barbaraskokobeauty.com']);
   await fixAdminClients();
 }
 
