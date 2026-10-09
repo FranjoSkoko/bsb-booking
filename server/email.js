@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
-import { relayConfigured, sendViaRelay } from './mailrelay.js';
+import { readFileSync } from 'node:fs';
+import { relayConfigured, relaySupportsInline, sendViaRelay } from './mailrelay.js';
 import { q, getSettings } from './db.js';
 import { formatDateHr, toHHMM } from './time.js';
 import { bookingIcs } from './ics.js';
@@ -197,6 +198,21 @@ const TEMPLATES = {
   }),
 };
 
+const LOGO_PATH = '/assets/logo/email_logo.png';
+const LOGO_CID = 'bsb-logo';
+let logoPng;
+const logoFile = () => (logoPng ??= readFileSync(new URL(`../public${LOGO_PATH}`, import.meta.url)));
+
+/** Logo umetnut u sam mail: vidi se odmah, i kad program za mail blokira slike s interneta. */
+function inlineLogo(html) {
+  const url = `${baseUrl()}${LOGO_PATH}`;
+  if (!html || !html.includes(url)) return { html, inlineImages: [] };
+  return {
+    html: html.split(`src="${url}"`).join(`src="cid:${LOGO_CID}"`),
+    inlineImages: [{ cid: LOGO_CID, filename: 'logo.png', contentType: 'image/png', content: logoFile() }],
+  };
+}
+
 function renderHtml({ subject, lines }, business) {
   const base = baseUrl();
   const muted = 'color:#6B5D56';
@@ -206,11 +222,11 @@ function renderHtml({ subject, lines }, business) {
     if (l.button) return `<p style="margin:0 0 16px"><a href="${l.href}" style="display:inline-block;padding:12px 26px;border-radius:999px;font-size:13px;letter-spacing:2px;text-transform:uppercase;text-decoration:none;${l.secondary ? 'border:1px solid #2B2421;color:#2B2421' : 'background:#2B2421;color:#F3EDE7'}">${escHtml(l.button)}</a></p>`;
     return '';
   }).join('');
-  return `<!doctype html><html lang="hr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escHtml(subject)}</title></head>
+  return `<!doctype html><html lang="hr"><head><meta charset="utf-8"><meta http-equiv="Content-Language" content="hr"><meta name="viewport" content="width=device-width"><title>${escHtml(subject)}</title></head>
 <body style="margin:0;padding:0;background:#F3EDE7;font-family:Poppins,'Helvetica Neue',Arial,sans-serif">
 <table role="presentation" width="100%" style="background:#F3EDE7"><tr><td align="center" style="padding:32px 16px">
 <table role="presentation" width="100%" style="max-width:560px;background:#FFFFFF">
-<tr><td align="center" style="padding:32px 32px 8px"><img src="${base}/assets/logo/email_logo.png" width="240" alt="Barbara Skoko Beauty" style="display:block;width:240px;max-width:80%;height:auto"></td></tr>
+<tr><td align="center" style="padding:32px 32px 8px"><img src="${base}${LOGO_PATH}" width="240" alt="Barbara Skoko Beauty" style="display:block;width:240px;max-width:80%;height:auto"></td></tr>
 <tr><td style="padding:24px 32px 8px">${body}</td></tr>
 <tr><td style="padding:16px 32px 32px;border-top:1px solid #DDD2C8;font-size:12px;line-height:1.7;color:#6B5D56;text-align:center">
 Barbara Skoko Beauty · Makeup · Threading · ${escHtml(business.city)}<br>${a(telHref(business.phone), business.phone, muted)} · ${a(business.instagramUrl, business.instagram, muted)}
@@ -272,11 +288,14 @@ export async function sendRaw({ to, subject, html, text, attachments, kind = 'os
     if (relay) {
       // Skripta šalje s te adrese ako je u Gmailu dodana kao „Pošalji poštu kao”, inače s Gmaila
       const from = (await getSettings()).business.email;
-      await sendViaRelay({ to, subject, html, text, attachments, replyTo, from, name: 'Barbara Skoko Beauty' });
+      const inl = relaySupportsInline() ? inlineLogo(html) : { html, inlineImages: [] };
+      await sendViaRelay({ to, subject, html: inl.html, text, attachments, inlineImages: inl.inlineImages, replyTo, from, name: 'Barbara Skoko Beauty' });
     } else {
+      const inl = inlineLogo(html);
       await t.sendMail({
         from: process.env.MAIL_FROM || `Barbara Skoko Beauty <${process.env.SMTP_USER}>`,
-        to, subject, html, text, attachments, replyTo,
+        to, subject, html: inl.html, text, replyTo,
+        attachments: [...(attachments || []), ...inl.inlineImages.map((i) => ({ filename: i.filename, content: i.content, contentType: i.contentType, cid: i.cid }))],
       });
     }
     await q('INSERT INTO email_log (booking_id, kind, to_addr, subject, status) VALUES ($1,$2,$3,$4,$5)', [bookingId, kind, to, subject, 'poslano']);
