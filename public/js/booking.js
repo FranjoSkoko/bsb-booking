@@ -473,15 +473,18 @@ function renderGallery() {
   const items = state.config.gallery;
   const about = items.find((g) => g.caption === '#o-meni');
   showAboutPhoto(about ? `/api/gallery/${about.id}` : ABOUT_DEFAULT);
-  // Fotografije koje Barbara doda u administraciji dolaze iza zadanih, pa se brojanje nastavlja
+  // Fotografije koje Barbara doda u administraciji idu na vrh, najnovija prva, pa tek onda zadane
   const src = (g) => `/api/gallery/${g.id}`;
-  const looks = items.filter((g) => !g.caption.startsWith('#')).map((g) => ({ src: src(g), alt: g.caption || 'Šminka – look' }));
-  const pairs = {};
-  for (const g of items) {
+  const newest = [...items].sort((a, b) => b.id - a.id);
+  const looks = newest.filter((g) => !g.caption.startsWith('#')).map((g) => ({ src: src(g), alt: g.caption || 'Šminka – look' }));
+  const pairs = new Map(); // Map čuva redoslijed i kad je ključ sav od znamenki
+  for (const g of newest) {
     const m = /^#obrve:([a-f0-9]+):(prije|poslije)$/.exec(g.caption);
-    if (m) (pairs[m[1]] ||= {})[m[2] === 'prije' ? 'before' : 'after'] = src(g);
+    if (!m) continue;
+    if (!pairs.has(m[1])) pairs.set(m[1], {});
+    pairs.get(m[1])[m[2] === 'prije' ? 'before' : 'after'] = src(g);
   }
-  renderWorks(looks, Object.values(pairs).filter((p) => p.before && p.after));
+  renderWorks(looks, [...pairs.values()].filter((p) => p.before && p.after));
 }
 
 // ---------- radovi: obrve prije i poslije, šminka i lookovi ----------
@@ -505,13 +508,13 @@ function workHtml(group, i, tag = '') {
 const SHOW_STEP = { obrve: 2, lookovi: 4 };
 
 function renderWorks(lookUploads = [], browUploads = []) {
-  const brows = [...BROWS.map((p) => ({ before: W + p.before, after: W + p.after })), ...browUploads];
+  const brows = [...browUploads, ...BROWS.map((p) => ({ before: W + p.before, after: W + p.after }))];
   lbGroups = {
     obrve: brows.flatMap((p) => [
       { src: p.before, alt: 'Obrve prije oblikovanja', cap: 'Prije' },
       { src: p.after, alt: 'Obrve nakon oblikovanja', cap: 'Poslije' },
     ]),
-    lookovi: [...LOOKS.map((f) => ({ src: W + f, alt: 'Šminka – look' })), ...lookUploads].map((it, n) => ({ ...it, alt: `${it.alt} ${n + 1}`, cap: '' })),
+    lookovi: [...lookUploads, ...LOOKS.map((f) => ({ src: W + f, alt: 'Šminka – look' }))].map((it, n) => ({ ...it, alt: `${it.alt} ${n + 1}`, cap: '' })),
   };
   const hide = (group, n) => (n >= SHOW_STEP[group] ? ' hidden' : '');
   $('#ba-list').innerHTML = brows.map((_, n) => `<div class="ba"${hide('obrve', n)}>${workHtml('obrve', 2 * n, '<span class="tag">Prije</span>')}${workHtml('obrve', 2 * n + 1, '<span class="tag after">Poslije</span>')}</div>`).join('');
