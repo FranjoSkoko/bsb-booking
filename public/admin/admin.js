@@ -1122,11 +1122,15 @@ async function viewSettings(v) {
   const bookUrl = `${status.baseUrl}/rezerviraj`;
   const aboutPhotos = cfg.gallery.filter((g) => g.caption === '#o-meni');
   const about = aboutPhotos[0];
-  const works = cfg.gallery.filter((g) => !g.caption.startsWith('#'));
-  const browPairs = {};
-  for (const g of cfg.gallery) {
+  // Najnovije prve, istim redom kao na stranici
+  const newest = [...cfg.gallery].sort((a, b) => b.id - a.id);
+  const works = newest.filter((g) => !g.caption.startsWith('#'));
+  const browPairs = new Map(); // Map čuva redoslijed i kad je ključ sav od znamenki
+  for (const g of newest) {
     const m = /^#obrve:([a-f0-9]+):(prije|poslije)$/.exec(g.caption);
-    if (m) (browPairs[m[1]] ||= { key: m[1] })[m[2]] = g.id;
+    if (!m) continue;
+    if (!browPairs.has(m[1])) browPairs.set(m[1], { key: m[1] });
+    browPairs.get(m[1])[m[2]] = g.id;
   }
 
   v.innerHTML = `
@@ -1208,7 +1212,7 @@ async function viewSettings(v) {
 
     <h3>Radovi · Šminka i lookovi</h3>
     <div class="panel" style="padding:16px 20px">
-      <p class="small">Na stranici su četiri zadana looka. Fotografije koje dodate ovdje dolaze iza njih (5, 6 …). Prikazuju se po četiri, a ostale se otvaraju gumbom „Više lookova”.</p>
+      <p class="small">Na stranici su četiri zadana looka. Fotografije koje dodate ovdje idu na vrh, najnovija prva, a zadani lookovi dolaze iza njih. Prikazuju se po četiri, a ostale se otvaraju gumbom „Više lookova”.</p>
       ${works.length ? `<div class="thumbs" id="thumbs">${works.map((g) => `<figure><img src="/api/gallery/${g.id}" alt=""><button data-del-img="${g.id}" aria-label="Obriši">×</button></figure>`).join('')}</div>` : ''}
       <div class="toolbar" style="margin-top:12px">
         <label class="btn btn-small btn-outline">Dodaj lookove<input type="file" id="img-input" accept="image/*" multiple hidden></label>
@@ -1217,8 +1221,8 @@ async function viewSettings(v) {
 
     <h3>Radovi · Oblikovanje obrva</h3>
     <div class="panel" style="padding:16px 20px">
-      <p class="small">Na stranici je jedan zadani par. Parovi koje dodate ovdje dolaze iza njega. Prikazuju se po dva, a ostali se otvaraju gumbom „Prikaži više”.</p>
-      ${Object.values(browPairs).map((p) => `<div class="pair-row">
+      <p class="small">Na stranici je jedan zadani par. Parovi koje dodate ovdje idu na vrh, najnoviji prvi, a zadani par dolazi iza njih. Prikazuju se po dva, a ostali se otvaraju gumbom „Prikaži više”.</p>
+      ${[...browPairs.values()].map((p) => `<div class="pair-row">
         ${['prije', 'poslije'].map((side) => p[side] ? `<figure><img src="/api/gallery/${p[side]}" alt=""><figcaption>${side === 'prije' ? 'Prije' : 'Poslije'}</figcaption></figure>` : '<figure class="missing"><figcaption>Nedostaje</figcaption></figure>').join('')}
         <button class="btn-link" data-del-pair="${p.key}">Obriši par</button>
       </div>`).join('')}
