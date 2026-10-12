@@ -705,12 +705,12 @@ async function clientModal(id) {
   const tel = phoneDigits(c.phone) ? '+' + phoneDigits(c.phone) : '';
   modal.open(`
     <div class="modal-head"><h2>${esc(c.name)}</h2><button class="close-x" data-close aria-label="Zatvori">×</button></div>
-    <dl class="kv">
-      <dt>Mobitel</dt><dd>${c.phone ? `<a href="tel:${esc(tel)}">${esc(c.phone)}</a>` : '–'}</dd>
-      <dt>Email</dt><dd>${c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '–'}</dd>
-    </dl>
-    <div class="field compact"><label>Bilješke (npr. alergije, omiljeni look, nijansa henne)</label><textarea id="c-notes">${esc(c.notes)}</textarea></div>
-    <div class="btn-row"><button class="btn btn-small" id="c-save">Spremi bilješke</button></div>
+    <div class="field compact"><label for="c-name">Ime i prezime</label><input id="c-name" value="${esc(c.name)}" autocomplete="off"></div>
+    <div class="field compact"><label for="c-phone">Mobitel${tel ? ` · <a href="tel:${esc(tel)}">nazovi</a>` : ''}</label><input id="c-phone" type="tel" value="${esc(c.phone)}" placeholder="npr. 063 123 456" autocomplete="off"></div>
+    <div class="field compact"><label for="c-email">Email${c.email ? ` · <a href="mailto:${esc(c.email)}">piši</a>` : ''}</label><input id="c-email" type="email" value="${esc(c.email)}" placeholder="nije obavezno" autocomplete="off"></div>
+    <div class="field compact"><label for="c-notes">Bilješke (npr. alergije, omiljeni look, nijansa henne)</label><textarea id="c-notes">${esc(c.notes)}</textarea></div>
+    <div class="btn-row"><button class="btn btn-small" id="c-save">Spremi</button></div>
+    <p class="small muted">Mobitel i email nisu obavezni. Novi podaci vrijede i za njezine nadolazeće termine.</p>
     <h3>Povijest</h3>
     <div>${c.bookings.length ? c.bookings.map((b) => `<div class="row ${['odbijeno', 'otkazano', 'nije_dosla'].includes(b.status) ? 'dim' : ''}" data-bid="${b.id}" style="grid-template-columns:1fr auto"><div><div class="who">${fmtDay(b.date)} · ${hhmm(b.start_min)}</div><div class="what">${esc(b.services.map((s) => s.name).join(' + '))} · ${km(b.total_price)}</div></div>${pill(b)}</div>`).join('') : '<div class="empty-row">Nema termina.</div>'}</div>
     <p class="small" style="margin-top:20px"><button class="btn-link" id="c-del">Obriši podatke klijentice (na njezin zahtjev)</button></p>
@@ -724,8 +724,13 @@ async function clientModal(id) {
     });
     $$('[data-bid]', root).forEach((r) => r.addEventListener('click', () => bookingModal(c.bookings.find((b) => b.id === Number(r.dataset.bid)))));
     $('#c-save', root).addEventListener('click', async () => {
-      await api(`/api/admin/clients/${id}`, { method: 'PATCH', body: { notes: $('#c-notes', root).value } });
-      toast('Bilješke spremljene.');
+      const val = (sel) => $(sel, root).value;
+      try {
+        const r = await api(`/api/admin/clients/${id}`, { method: 'PATCH', body: { name: val('#c-name'), phone: val('#c-phone'), email: val('#c-email'), notes: val('#c-notes') } });
+        toast('Spremljeno.');
+        render();
+        clientModal(r.id); // osvježi karticu s novim podacima
+      } catch (err) { toast(err.message); }
     });
     $('#c-del', root).addEventListener('click', async () => {
       if (!confirm('Trajno obrisati ime, kontakt i bilješke ove klijentice? Termini ostaju u kalendaru bez osobnih podataka.')) return;
