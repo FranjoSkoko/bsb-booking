@@ -579,6 +579,29 @@ admin.patch('/clients/:id', wrap(async (req, res) => {
   res.json(row);
 }));
 
+// Spajanje dvije kartice iste klijentice: termini i recenzije prelaze na odabranu, prazan kontakt se popuni, bilješke se zbroje
+admin.post('/clients/:id/merge', wrap(async (req, res) => {
+  const from = Number(req.params.id);
+  const into = Number(req.body.into);
+  if (!into || into === from) throw new UserError('Odaberite drugu klijenticu.');
+  const row = await tx(async (db) => {
+    const r = await db.query('SELECT * FROM clients WHERE id = ANY($1) FOR UPDATE', [[from, into]]);
+    const a = r.rows.find((c) => c.id === from);
+    const b = r.rows.find((c) => c.id === into);
+    if (!a || !b) throw new UserError('Klijentica ne postoji.', 404);
+    await db.query('UPDATE bookings SET client_id = $2 WHERE client_id = $1', [from, into]);
+    await db.query('UPDATE reviews SET client_id = $2 WHERE client_id = $1', [from, into]);
+    const notes = [b.notes, a.notes].map((n) => n.trim()).filter((n, i, all) => n && all.indexOf(n) === i).join('\n');
+    const out = await db.query(
+      `UPDATE clients SET phone = $2, email = $3, notes = $4, rebook_optout = $5 WHERE id = $1 RETURNING *`,
+      [into, b.phone || a.phone, b.email || a.email, notes, b.rebook_optout || a.rebook_optout]
+    );
+    await db.query('DELETE FROM clients WHERE id = $1', [from]);
+    return out.rows[0];
+  });
+  res.json(row);
+}));
+
 // Brisanje podataka klijentice na zahtjev (GDPR)
 // ?termini=1: testna klijentica – obrišu se i svi njezini termini
 admin.delete('/clients/:id', wrap(async (req, res) => {

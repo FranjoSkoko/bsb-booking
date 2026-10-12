@@ -713,7 +713,12 @@ async function clientModal(id) {
     <p class="small muted">Mobitel i email nisu obavezni. Novi podaci vrijede i za njezine nadolazeće termine.</p>
     <h3>Povijest</h3>
     <div>${c.bookings.length ? c.bookings.map((b) => `<div class="row ${['odbijeno', 'otkazano', 'nije_dosla'].includes(b.status) ? 'dim' : ''}" data-bid="${b.id}" style="grid-template-columns:1fr auto"><div><div class="who">${fmtDay(b.date)} · ${hhmm(b.start_min)}</div><div class="what">${esc(b.services.map((s) => s.name).join(' + '))} · ${km(b.total_price)}</div></div>${pill(b)}</div>`).join('') : '<div class="empty-row">Nema termina.</div>'}</div>
-    <p class="small" style="margin-top:20px"><button class="btn-link" id="c-del">Obriši podatke klijentice (na njezin zahtjev)</button></p>
+    <p class="small" style="margin-top:20px"><button class="btn-link" id="c-merge">Spoji s drugom klijenticom (ista osoba upisana dvaput)</button></p>
+    <div id="c-merge-box" hidden>
+      <div class="field compact"><label for="c-merge-q">Potraži drugu karticu iste osobe</label><input id="c-merge-q" type="search" value="${esc(c.name.split(' ').pop())}" autocomplete="off"></div>
+      <div id="c-merge-list"></div>
+    </div>
+    <p class="small" style="margin-top:8px"><button class="btn-link" id="c-del">Obriši podatke klijentice (na njezin zahtjev)</button></p>
     <p class="small" style="margin-top:8px"><button class="btn-link" id="c-del-all">Obriši klijenticu i sve njezine termine (testovi)</button></p>`, (root) => {
     $('#c-del-all', root).addEventListener('click', async () => {
       if (!confirm(`Trajno obrisati klijenticu i ${c.bookings.length === 1 ? 'njezin termin' : `svih ${c.bookings.length} njezinih termina`}? Nestat će iz kalendara i analitike.`)) return;
@@ -732,6 +737,31 @@ async function clientModal(id) {
         clientModal(r.id); // osvježi karticu s novim podacima
       } catch (err) { toast(err.message); }
     });
+    const mergeList = async () => {
+      const q = $('#c-merge-q', root).value.trim();
+      const list = (await api(`/api/admin/clients?q=${encodeURIComponent(q)}`)).filter((x) => x.id !== id).slice(0, 8);
+      $('#c-merge-list', root).innerHTML = list.length ? list.map((x) => `<div class="row" style="grid-template-columns:1fr auto;cursor:default">
+        <div><div class="who">${esc(x.name)}</div><div class="what">${[x.phone, x.email].filter(Boolean).map(esc).join(' · ') || 'bez kontakta'} · ${x.visits} ${x.visits === 1 ? 'termin' : 'termina'}</div></div>
+        <button class="btn btn-small btn-outline" data-merge="${x.id}">Spoji</button></div>`).join('') : '<div class="empty-row">Nitko ne odgovara pretrazi.</div>';
+      $$('[data-merge]', root).forEach((btn) => btn.addEventListener('click', async () => {
+        const other = list.find((x) => x.id === Number(btn.dataset.merge));
+        const n = c.bookings.length;
+        if (!confirm(`Spojiti u jednu karticu „${other.name}”? ${n === 1 ? 'Termin s ove kartice prelazi' : `Termini s ove kartice (${n}) prelaze`} na nju, prazan mobitel i email se popune, a bilješke se zbroje. Ova kartica se briše.`)) return;
+        try {
+          const r = await api(`/api/admin/clients/${id}/merge`, { method: 'POST', body: { into: other.id } });
+          toast('Klijentice su spojene.');
+          render();
+          clientModal(r.id);
+        } catch (err) { toast(err.message); }
+      }));
+    };
+    $('#c-merge', root).addEventListener('click', () => {
+      const box = $('#c-merge-box', root);
+      box.hidden = !box.hidden;
+      if (!box.hidden) mergeList();
+    });
+    const mq = $('#c-merge-q', root);
+    mq.addEventListener('input', () => { clearTimeout(mq.t); mq.t = setTimeout(mergeList, 300); });
     $('#c-del', root).addEventListener('click', async () => {
       if (!confirm('Trajno obrisati ime, kontakt i bilješke ove klijentice? Termini ostaju u kalendaru bez osobnih podataka.')) return;
       await api(`/api/admin/clients/${id}`, { method: 'DELETE' });
@@ -880,7 +910,7 @@ async function viewStats(v) {
       <div class="kpi"><span class="label">Odrađeno</span><b>${t.done}</b>${delta(t.done, prev?.done, p.prevLabel, String)}${t.upcoming ? `<small>još ${t.upcoming} dogovoreno · ${km(t.upcomingRevenue)}</small>` : ''}</div>
       <div class="kpi${t.cancelled ? ' tap' : ''}" ${t.cancelled ? 'data-list="otkazano" role="button" tabindex="0"' : ''}><span class="label">Otkazano</span><b>${t.cancelled}</b><small>${pct(t.cancelRate)} rezervacija${t.cancelledLate ? ` · ${t.cancelledLate} kasno` : ''}</small></div>
       <div class="kpi"><span class="label">Nije došla</span><b>${t.noShow}</b><small>izgubljeno ${km(t.lostRevenue)} (s otkazanima)</small></div>
-      <div class="kpi"><span class="label">Klijentice</span><b>${t.clients}</b><small>${s.mode === 'sve' ? `${t.repeatClients} dolazi više puta` : `${t.newClients} novih · ${t.returningClients} se vratilo`}</small></div>
+      <div class="kpi"><span class="label">Klijentice</span><b>${t.clients}</b><small>${s.mode === 'sve' ? `${t.repeatClients} dolazi više puta` : `${t.newClients} novih · ${t.returningClients} se vratilo${t.repeatClients ? ` · ${t.repeatClients} dolazi više puta` : ''}`}</small></div>
       <div class="kpi"><span class="label">Popunjenost</span><b>${t.occupancy == null ? '–' : pct(t.occupancy)}</b><small>${num(t.bookedHours)} od ${num(t.openHours)} h radnog vremena</small></div>
       <div class="kpi"><span class="label">Online</span><b>${pct(t.onlineShare)}</b><small>rezervacija preko stranice${t.leadDays != null ? ` · u prosjeku ${num(t.leadDays)} dana unaprijed` : ''}</small></div>
       <div class="kpi"><span class="label">Na čekanju</span><b>${t.pending}</b><small>${t.rejected ? `${t.rejected} odbijeno` : 'čeka vašu potvrdu'}${t.expired ? ` · ${t.expired} prošlo nepotvrđeno` : ''}</small></div>
