@@ -7,14 +7,14 @@ import { fileURLToPath } from 'node:url';
 import { q, initDb, getSettings, saveSetting, getServices, tx } from './db.js';
 import {
   UserError, createBooking, slotsFor, availableDays, getBookingByToken, getBookingById,
-  changeStatus, canClientCancel, updateBooking, rowToBooking, STATUS_LABEL, hasStarted, clientMailExtra,
+  changeStatus, canClientCancel, updateBooking, rowToBooking, STATUS_LABEL, hasStarted, clientMailExtra, cleanInput,
 } from './bookings.js';
 import { checkPassword, sessionCookie, clearSession, isAdmin, requireAdmin, verifyAction } from './auth.js';
 import { bookingIcs } from './ics.js';
 import { baseUrl, emailConfigured, buildEmail, sendRaw, adminEmail, icsAttachment } from './email.js';
 import { runScheduledJobs, startScheduler } from './scheduler.js';
 import { nowLocal, toHHMM, toMin, formatDateHr, parseYmd, addDays } from './time.js';
-import { telHref, waHref } from './phone.js';
+import { telHref, waHref, phoneDigits } from './phone.js';
 import { registerExtras, cleanExtras } from './extras.js';
 import { DEFAULT_SETTINGS } from './defaults.js';
 import { emit } from './hooks.js';
@@ -552,14 +552,31 @@ admin.get('/clients/:id', wrap(async (req, res) => {
   res.json({ ...c.rows[0], bookings: b.rows.map(rowToBooking) });
 }));
 
+// Barbara naknadno upisuje ili ispravlja ime, mobitel, email i bilješke klijentice
 admin.patch('/clients/:id', wrap(async (req, res) => {
-  const { notes, name, phone, email } = req.body;
-  const r = await q(
-    `UPDATE clients SET notes = COALESCE($2, notes), name = COALESCE($3, name), phone = COALESCE($4, phone), email = COALESCE($5, email)
-     WHERE id = $1 RETURNING *`,
-    [Number(req.params.id), notes ?? null, name ?? null, phone ?? null, email ?? null]
-  );
-  res.json(r.rows[0]);
+  const id = Number(req.params.id);
+  const old = (await q('SELECT * FROM clients WHERE id = $1', [id])).rows[0];
+  if (!old) throw new UserError('Klijentica ne postoji.', 404);
+  const { name = old.name, phone = old.phone, email = old.email, notes = old.notes } = req.body;
+  const c = cleanInput({ name, phone, email }, { requireContact: false });
+  if (c.phone && (c.phone.match(/\d/g) || []).length < 6) throw new UserError('Broj mobitela nije ispravan.');
+  if (c.phone && phoneDigits(c.phone) === phoneDigits((await getSettings()).business.phone)) {
+    throw new UserError('To je broj salona. Upišite broj klijentice ili ostavite prazno.');
+  }
+  const row = await tx(async (db) => {
+    const r = await db.query('UPDATE clients SET name = $2, phone = $3, email = $4, notes = $5 WHERE id = $1 RETURNING *',
+      [id, c.name, c.phone, c.email, String(notes ?? '').slice(0, 2000)]);
+    // Nadolazeći termini dobiju novi kontakt, da podsjetnik i zahvala stignu na pravu adresu
+    if (c.name !== old.name || c.phone !== old.phone || c.email !== old.email) {
+      await db.query(
+        `UPDATE bookings SET name = $2, phone = $3, email = $4
+         WHERE client_id = $1 AND status IN ('na_cekanju','potvrdeno') AND date >= $5`,
+        [id, c.name, c.phone, c.email, nowLocal().date]
+      );
+    }
+    return r.rows[0];
+  });
+  res.json(row);
 }));
 
 // Brisanje podataka klijentice na zahtjev (GDPR)
