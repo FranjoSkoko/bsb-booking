@@ -301,6 +301,8 @@ $('#booking-form').addEventListener('submit', async (e) => {
     : !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(data.email.trim()) ? 'Upišite ispravnu email adresu.'
     : !data.consent ? 'Za rezervaciju je potrebna privola za obradu podataka.' : null;
   if (problem) { err.textContent = problem; err.hidden = false; return; }
+  // Moguć tipfeler u emailu: prvo pokaži prijedlog, drugi klik šalje kako piše
+  if (emailNeedsCheck($('#f-email'))) return;
 
   const btn = $('#submit-btn');
   btn.disabled = true;
@@ -567,6 +569,67 @@ function setupLightbox() {
     if (Math.abs(dx) > 40) lbStep(dx < 0 ? 1 : -1);
   });
 }
+
+// ---------- „Jeste li mislili …?” kod tipfelera u emailu (gmail.con, gmial.com, hotmial.com …) ----------
+const MAIL_DOMAINS = ['gmail.com', 'hotmail.com', 'outlook.com', 'live.com', 'msn.com', 'yahoo.com', 'icloud.com', 'me.com',
+  'hotmail.de', 'yahoo.de', 'gmx.de', 'gmx.net', 'gmx.at', 'web.de', 't-online.de', 'bluewin.ch',
+  'net.hr', 't-com.hr', 'hteronet.ba', 'tel.net.ba', 'bih.net.ba', 'teletel.ba', 'live.de', 'aol.com'];
+// Broj izmjena (umetanje, brisanje, zamjena, dva zamijenjena slova) između dvije riječi
+function editDistance(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+    }
+  }
+  return d[a.length][b.length];
+}
+function emailSuggestion(value) {
+  const m = /^([^\s@]+)@([^\s@]+)$/.exec(value.trim().toLowerCase());
+  if (!m || MAIL_DOMAINS.includes(m[2])) return null;
+  const dom = m[2];
+  let best = null;
+  let bestD = Infinity;
+  for (const d of MAIL_DOMAINS) {
+    const k = dom.includes('.') ? editDistance(dom, d) : Math.min(editDistance(dom + '.com', d), editDistance(dom, d.replace(/\./g, '')));
+    if (k < bestD) { best = d; bestD = k; }
+  }
+  if (bestD <= (dom.length < 8 ? 1 : 2)) return `${m[1]}@${best}`;
+  const tld = dom.replace(/\.(con|cpm|cim|comm|cmo|vom|xom)$/, '.com');
+  return tld !== dom ? `${m[1]}@${tld}` : null;
+}
+// Prijedlog se prikaže ispod polja
+function showEmailHint(input) {
+  const field = input.closest('.field') || input.parentElement;
+  const sug = emailSuggestion(input.value);
+  let hint = $('.mail-hint', field);
+  if (!sug) { hint?.remove(); return null; }
+  if (hint?.dataset.for === sug) return hint;
+  hint?.remove();
+  hint = document.createElement('p');
+  hint.className = 'mail-hint';
+  hint.dataset.for = sug;
+  hint.innerHTML = `Jeste li mislili <button type="button">${esc(sug)}</button>? <button type="button" class="mail-hint-no">Ne, točno je</button>`;
+  $('button', hint).addEventListener('click', () => { input.value = sug; hint.remove(); input.dispatchEvent(new Event('input', { bubbles: true })); });
+  $('.mail-hint-no', hint).addEventListener('click', () => { hint.hidden = true; input.focus(); });
+  field.append(hint);
+  return hint;
+}
+// Kod slanja: ako prijedlog još nije odbijen, slanje se zaustavi jednom; drugi klik šalje kako piše
+function emailNeedsCheck(input) {
+  const hint = showEmailHint(input);
+  if (!hint || hint.hidden || hint.dataset.stopped) return false;
+  hint.dataset.stopped = '1';
+  input.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  return true;
+}
+document.addEventListener('focusout', (e) => { if (e.target.matches?.('input[type="email"]')) showEmailHint(e.target); });
+document.addEventListener('input', (e) => {
+  const hint = e.target.matches?.('input[type="email"]') && $('.mail-hint', e.target.closest('.field') || e.target.parentElement);
+  if (hint && hint.dataset.for !== emailSuggestion(e.target.value)) hint.remove();
+});
 
 // ---------- dodatne sekcije (uključuju se u administraciji) ----------
 const EMAIL_OK = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim());

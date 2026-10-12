@@ -279,6 +279,10 @@ footer.site-footer p:last-child { margin: 0; }
   border: 1px solid var(--line); border-radius: 0; background: var(--white);
 }
 .field textarea { min-height: 96px; resize: vertical; }
+.mail-hint { margin: 8px 0 0; padding: 10px 12px; font-size: 14px; background: var(--cream); border-left: 3px solid var(--rose); }
+.mail-hint button { font: inherit; color: var(--rose-dark); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
+.mail-hint button:first-child { font-weight: 600; }
+.mail-hint .mail-hint-no { margin-left: 6px; font-size: 13px; color: var(--muted); }
 .field input:focus, .field textarea:focus, .field select:focus { outline: none; border-color: var(--rose); }
 .check { display: flex; gap: 12px; align-items: flex-start; font-size: 14px; cursor: pointer; }
 .check input { width: 22px; height: 22px; flex: none; margin: 1px 0 0; accent-color: var(--ink); }
